@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+    <include file="$(find authoring)/launch/detect.launch"/>  
+    <include file="$(find authoring)/launch/kinect.launch"/>  
+    <include file="$(find authoring)/launch/rviz_viewer.launch"/>  
+</launch>

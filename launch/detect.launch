@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="image_topic" default="/rgb/image_raw"/>
+    <include file="$(find ros_markers)/launch/detect.launch" >
+        <arg name="image_topic"            value="$(arg image_topic)" />
+        <arg name="default_marker_size"            value="105" />
+    </include>  
+    <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0.05025 -.08 0 .707106781 0.707106781 0 0 tag_4 panda_link0 100" />
+
+    <!-- <node pkg="tf" type="static_transform_publisher" name="camera_boadcast" args="-0.270932403564 0.264854064941 0.952202697754 -0.484553041928 -0.306732340475 -0.430412649758 0.697042733118 rgb_camera_link tag_4 100" /> -->
+</launch>
