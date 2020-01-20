@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+import numpy as np
+import math
+import rospy
+import signal
+#https://github.com/eric-wieser/ros_numpy
+import ros_numpy
+import sys
+import cv2
+from std_msgs.msg import String
+from sensor_msgs.msg import Image, PointCloud2, CameraInfo
+import image_geometry
+from cv_bridge import CvBridge, CvBridgeError
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Pose
+import tf
+
+class Parser(object):
+    def __init__(self):
+
+        self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
+        self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self.on_image)
+        self._cloud_sub = rospy.Subscriber("points2", PointCloud2, self.on_cloud)
+        self._info_sub = rospy.Subscriber("rgb/camera_info", CameraInfo, self.on_info) 
+        self._marker_pub = rospy.Publisher("marker",Marker,queue_size=1)
+        self._bridge = CvBridge()
+        self._cv_image = None
+        self._model = None
+        self._image = None
+        self._cloud = None
+        self._br = tf.TransformBroadcaster()
+
+    def on_info(self, message):
+        if self._model is None:
+            self._model = image_geometry.PinholeCameraModel()
+            self._model.fromCameraInfo(message)
+
+
+    def on_command(self, message):
+        cmd = message.data.split(":")
+        x = int(cmd[1])
+        y = int(cmd[3])
+        if self._image is not None and self._model is not None:
+            d = self._image[y,x]
+            print "depth: "+str(d)
+            if d == 0.0:
+                print "bad depth"
+                return #?
+            rect = None#cv2.CvMat()
+            self._model.rectifyImage(self._cv_image,rect)
+            p = [x,y]
+            p = self._model.rectifyPoint(p)
+            p3d = self._model.projectPixelTo3dRay(p)
+            p3d = tuple([d/p3d[2] * i for i in p3d])
+            p_tr = (p3d[2],-p3d[0],-p3d[1])
+            self._br.sendTransform(p_tr,(0,0,0,1), rospy.Time.now(), "click","camera_visor")
+
+            return
+            marker = Marker()
+            marker.header.frame_id = "camera_visor"
+            marker.pose.position.x=p3d[0]
+            marker.pose.position.y=p3d[1]
+            marker.pose.position.z=p3d[2]
+            marker.scale.x=1
+            marker.scale.y=1
+            marker.scale.z=1
+            marker.color.r=1
+            marker.color.a=1
+            marker.pose.orientation.w=1
+            self._marker_pub.publish(marker)
+
+    def on_image(self, message):
+        self._image = ros_numpy.numpify(message)
+        self._cv_image = self._bridge.imgmsg_to_cv2(message, "passthrough")
+
+    def on_cloud(self, message):
+        self._cloud = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(message)
+
+    def run(self):
+        rospy.spin()
+
+    def signal_handler(self, signal, frame):
+        sys.exit()
+
+if __name__ == "__main__":
+    rospy.init_node('parser')
+    parser = Parser()
+    signal.signal(signal.SIGINT, parser.signal_handler)
+    parser.run()
