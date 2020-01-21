@@ -12,17 +12,19 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseStamped
 import tf
+
+REFERENCE_FRAME='panda_link0'
 
 class Parser(object):
     def __init__(self):
-
+        self._tl = tf.TransformListener()
         self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
         self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self.on_image)
         self._cloud_sub = rospy.Subscriber("points2", PointCloud2, self.on_cloud)
         self._info_sub = rospy.Subscriber("rgb/camera_info", CameraInfo, self.on_info) 
-        self._marker_pub = rospy.Publisher("marker",Marker,queue_size=1)
+        self._pose_pub = rospy.Publisher("/grasping_point",PoseStamped,queue_size=1)
         self._bridge = CvBridge()
         self._cv_image = None
         self._model = None
@@ -53,7 +55,23 @@ class Parser(object):
             p3d = self._model.projectPixelTo3dRay(p)
             p3d = tuple([d/p3d[2] * i for i in p3d])
             p_tr = (p3d[2],-p3d[0],-p3d[1])
-            self._br.sendTransform(p_tr,(0,0,0,1), rospy.Time.now(), "click","camera_visor")
+            print p3d
+            print p_tr
+            self._br.sendTransform(p3d,(0,0,0,1), rospy.Time.now(), "click","rgb_camera_link")
+            pose = PoseStamped()
+            pose.pose.position.x=p3d[0]
+            pose.pose.position.y=p3d[1]
+            pose.pose.position.z=p3d[2]
+            pose.pose.orientation.w=1
+            pose.header.frame_id="rgb_camera_link"
+            pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+            q = tf.transformations.quaternion_from_euler(math.pi,0,0)
+            pose.pose.orientation.x=q[0]
+            pose.pose.orientation.y=q[1]
+            pose.pose.orientation.z=q[2]
+            pose.pose.orientation.w=q[3]
+            pose.header.stamp=rospy.Time.now()
+            self._pose_pub.publish(pose)
 
             return
             marker = Marker()

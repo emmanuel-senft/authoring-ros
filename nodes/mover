@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+import rospy
+import signal
+import sys
+import math
+import tf
+import PyKDL
+
+from geometry_msgs.msg import Twist,Pose,PoseStamped
+from std_msgs.msg import String
+from nav_msgs.msg import Path
+
+REFERENCE_FRAME='panda_link0'
+
+class Mover(object):
+    def __init__(self):
+        self._tl = tf.TransformListener()
+        rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
+        self._twist_pub = rospy.Publisher("/panda/cart_vel",Twist, queue_size=5)
+        self._path_sub = rospy.Subscriber("/panda/path", Path, self.on_path)
+        self._goal=None
+
+    def bound(self, val, b):
+        return min(max(val,-b),b)
+
+    def on_path(self, path):
+        if len(path.poses) < 2:
+            self._goal = None
+        else:
+            self._goal = path.poses[1]
+
+    def run(self):
+        r = rospy.Rate(100)
+        while not rospy.is_shutdown():
+            self.go_goal()
+            r.sleep()
+
+    def go_goal(self):
+        if self._goal is None:
+            twist = Twist()
+            self._twist_pub.publish(twist)
+            print "no goal"
+            return
+
+        try:
+            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, 'end_effector', rospy.Time(0))
+        except:
+            print("fail")
+            return
+        print "going"
+        
+        goal = self._goal
+
+        pose = Pose()
+        pose.position.x = goal.pose.position.x-trans[0]
+        pose.position.y = goal.pose.position.y-trans[1]
+        pose.position.z = goal.pose.position.z-trans[2]
+
+        #From https://answers.ros.org/question/10124/relative-rotation-between-two-quaternions/
+        qp = PyKDL.Rotation.Quaternion(rot[0],rot[1],rot[2],rot[3])
+
+        rot = goal.pose.orientation
+        qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+        q = qg*qp.Inverse()
+
+        angle = q.GetRPY()
+        
+        twist = Twist()
+        max_vel = .05
+        P=8
+        twist.linear.x=self.bound(P*pose.position.x,max_vel)
+        twist.linear.y=self.bound(P*pose.position.y,max_vel)
+        twist.linear.z=self.bound(P*pose.position.z,max_vel)
+        twist.angular.x=self.bound(angle[0],max_vel)
+        twist.angular.y=self.bound(angle[1],max_vel)
+        twist.angular.z=self.bound(angle[2],max_vel)
+        self._twist_pub.publish(twist)
+
+    def signal_handler(self, signal, frame):
+        #publish zeros for the twist, exit
+        twist = Twist()
+        self._twist_pub.publish(twist)
+        sys.exit(0)
+
+if __name__ == "__main__":
+    rospy.init_node("mover")
+    mover = Mover()
+    signal.signal(signal.SIGINT, mover.signal_handler)
+    mover.run()
+

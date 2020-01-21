@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+import rospy
+import signal
+import sys
+import math
+import tf
+import PyKDL
+import copy
+
+from geometry_msgs.msg import Twist,Pose,PoseStamped
+from nav_msgs.msg import Path
+from std_msgs.msg import String
+
+REFERENCE_FRAME='panda_link0'
+
+class Planner(object):
+    def __init__(self):
+        self._tl = tf.TransformListener()
+        rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
+        self._path_pub = rospy.Publisher("/panda/path", Path, queue_size=0)
+        self._goal_sub = rospy.Subscriber("/grasping_point", PoseStamped,self.on_goal)
+        self._string_pub = rospy.Publisher("/panda/commands",String, queue_size=1)
+        self._goals = []
+        print "ready"
+
+    def on_goal(self,msg):
+        print "new goal"
+        goal = self._tl.transformPose(REFERENCE_FRAME, msg)
+        self._goals=[]
+        approach_point = copy.deepcopy(goal)
+        approach_point.pose.position.z += .05
+        self._goals.append(approach_point)
+        self._goals.append(goal)
+        self._goals.append(approach_point)
+
+    def run(self):
+        r = rospy.Rate(100)
+        while not rospy.is_shutdown():
+            self.update_path()
+            r.sleep()
+
+    def check_goal(self):
+        try:
+            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, 'end_effector', rospy.Time(0))
+        except:
+            print("fail")
+            return
+        if len(self._goals) == 0:
+            return
+
+        goal = self._goals[0]
+        pose = Pose()
+        pose.position.x = goal.pose.position.x-trans[0]
+        pose.position.y = goal.pose.position.y-trans[1]
+        pose.position.z = goal.pose.position.z-trans[2]
+
+        #From https://answers.ros.org/question/10124/relative-rotation-between-two-quaternions/
+        qp = PyKDL.Rotation.Quaternion(rot[0],rot[1],rot[2],rot[3])
+
+        rot = goal.pose.orientation
+        qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+        q = qg*qp.Inverse()
+
+        angle = q.GetRPY()
+
+        threshold = .01
+        if math.fabs(pose.position.x) < threshold and math.fabs(pose.position.y) < threshold and math.fabs(pose.position.z) <threshold:
+            print("close enough")
+            self._goals.pop(0)
+            if len(self._goals) == 1:
+                cmd = String()
+                cmd.data = "toggleGrip"
+                self._string_pub.publish(cmd)
+                rospy.sleep(2)
+
+
+    def update_path(self):
+        self.check_goal()
+
+        path = Path()
+        path.header.frame_id = REFERENCE_FRAME
+        (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, 'end_effector', rospy.Time(0))
+        EE_pose = PoseStamped()
+        EE_pose.pose.position.x = trans[0]
+        EE_pose.pose.position.y = trans[1]
+        EE_pose.pose.position.z = trans[2]
+        EE_pose.pose.orientation.x = rot[0]
+        EE_pose.pose.orientation.y = rot[1]
+        EE_pose.pose.orientation.z = rot[2]
+        EE_pose.pose.orientation.w = rot[3]
+        EE_pose.header.frame_id = REFERENCE_FRAME
+        path.poses = [EE_pose]
+        for i in self._goals:
+            path.poses.append(i)
+        self._path_pub.publish(path)
+
+    def signal_handler(self, signal, frame):
+        #publish empty path
+        path = Path()
+        self._path_pub.publish(path)
+        sys.exit(0)
+
+if __name__ == "__main__":
+    rospy.init_node("planner")
+    planner = Planner()
+    signal.signal(signal.SIGINT, planner.signal_handler)
+    planner.run()
+
