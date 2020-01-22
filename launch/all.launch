@@ -13,5 +13,4 @@
         <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
     </include>
     <include file="$(find authoring)/launch/rviz_viewer.launch"/>  
-    <node pkg="authoring" type="parser" name="parser"/>
 </launch>

@@ -68,6 +68,8 @@ catkin_install_python(PROGRAMS
     nodes/rviz_viewer.py
     nodes/start_here.py
     nodes/parser
+    nodes/planner
+    nodes/mover
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 
