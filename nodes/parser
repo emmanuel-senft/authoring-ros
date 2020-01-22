@@ -12,7 +12,7 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Point
 import tf
 
 REFERENCE_FRAME='panda_link0'
@@ -25,6 +25,7 @@ class Parser(object):
         self._cloud_sub = rospy.Subscriber("points2", PointCloud2, self.on_cloud)
         self._info_sub = rospy.Subscriber("rgb/camera_info", CameraInfo, self.on_info) 
         self._pose_pub = rospy.Publisher("/grasping_point",PoseStamped,queue_size=1)
+        self._marker_pub = rospy.Publisher("/gui/markers",Marker,queue_size=1)
         self._bridge = CvBridge()
         self._cv_image = None
         self._model = None
@@ -37,55 +38,73 @@ class Parser(object):
             self._model = image_geometry.PinholeCameraModel()
             self._model.fromCameraInfo(message)
 
+    def get_xyz_from_pixel(self,x,y):
+        d = self._image[y,x]
+        print "depth: "+str(d)
+        if d == 0.0:
+            print "bad depth"
+            return None
+        rect = None
+        self._model.rectifyImage(self._cv_image,rect)
+        p = [x,y]
+        p = self._model.rectifyPoint(p)
+        p3d = self._model.projectPixelTo3dRay(p)
+        point = Point()
+        point.x=d/p3d[2]*p3d[0]
+        point.y=d/p3d[2]*p3d[1]
+        point.z=d/p3d[2]*p3d[2]
+        return point
+        
+    def publish_pose(self,point):
+        pose = PoseStamped()
+        pose.pose.position=point
+        pose.pose.orientation.w=1
+        pose.header.frame_id="rgb_camera_link"
+        pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+        q = tf.transformations.quaternion_from_euler(math.pi,0,0)
+        pose.pose.orientation.x=q[0]
+        pose.pose.orientation.y=q[1]
+        pose.pose.orientation.z=q[2]
+        pose.pose.orientation.w=q[3]
+        pose.header.stamp=rospy.Time.now()
+        self._pose_pub.publish(pose)
+
+    def publish_marker(self,point,name,i,scale = .02,alpha=1):
+        marker = Marker()
+        marker.header.frame_id = "rgb_camera_link"
+        marker.pose.position = point
+        marker.ns = name
+        marker.id = i
+        marker.scale.x=scale
+        marker.scale.y=scale
+        marker.scale.z=scale
+        marker.color.r=1
+        marker.color.a=alpha
+        marker.type = marker.SPHERE
+        marker.pose.orientation.w=1
+        self._marker_pub.publish(marker)
 
     def on_command(self, message):
-        cmd = message.data.split(":")
-        x = int(cmd[1])
-        y = int(cmd[3])
-        if self._image is not None and self._model is not None:
-            d = self._image[y,x]
-            print "depth: "+str(d)
-            if d == 0.0:
-                print "bad depth"
-                return #?
-            rect = None#cv2.CvMat()
-            self._model.rectifyImage(self._cv_image,rect)
-            p = [x,y]
-            p = self._model.rectifyPoint(p)
-            p3d = self._model.projectPixelTo3dRay(p)
-            p3d = tuple([d/p3d[2] * i for i in p3d])
-            p_tr = (p3d[2],-p3d[0],-p3d[1])
-            print p3d
-            print p_tr
-            self._br.sendTransform(p3d,(0,0,0,1), rospy.Time.now(), "click","rgb_camera_link")
-            pose = PoseStamped()
-            pose.pose.position.x=p3d[0]
-            pose.pose.position.y=p3d[1]
-            pose.pose.position.z=p3d[2]
-            pose.pose.orientation.w=1
-            pose.header.frame_id="rgb_camera_link"
-            pose = self._tl.transformPose(REFERENCE_FRAME, pose)
-            q = tf.transformations.quaternion_from_euler(math.pi,0,0)
-            pose.pose.orientation.x=q[0]
-            pose.pose.orientation.y=q[1]
-            pose.pose.orientation.z=q[2]
-            pose.pose.orientation.w=q[3]
-            pose.header.stamp=rospy.Time.now()
-            self._pose_pub.publish(pose)
+        list_actions = message.data.split(";")
 
-            return
-            marker = Marker()
-            marker.header.frame_id = "camera_visor"
-            marker.pose.position.x=p3d[0]
-            marker.pose.position.y=p3d[1]
-            marker.pose.position.z=p3d[2]
-            marker.scale.x=1
-            marker.scale.y=1
-            marker.scale.z=1
-            marker.color.r=1
-            marker.color.a=1
-            marker.pose.orientation.w=1
-            self._marker_pub.publish(marker)
+        for i,action in enumerate(list_actions):
+            cmd = action.split(":")
+        
+            name = cmd[0]
+            x = int(cmd[1])
+            y = int(cmd[2])
+            if self._image is not None and self._model is not None:
+                point = self.get_xyz_from_pixel(x,y)
+                if point is None:
+                    return
+                self.publish_pose(point)
+                #self._br.sendTransform(p3d,(0,0,0,1), rospy.Time.now(), "click","rgb_camera_link")
+                if name == 'circle':
+                    width = int(cmd[3])
+                    self.publish_marker(point,name,i,scale=width/point.z/1500,alpha=.5)
+                if name == 'click':
+                    self.publish_marker(point)
+
 
     def on_image(self, message):
         self._image = ros_numpy.numpify(message)
