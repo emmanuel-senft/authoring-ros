@@ -13,6 +13,8 @@ from std_msgs.msg import String
 from authoring_msgs.msg import Action,Command
 
 REFERENCE_FRAME='panda_link0'
+ACTION_PICK=0
+ACTION_PLACE=1
 
 class Planner(object):
     def __init__(self):
@@ -29,14 +31,15 @@ class Planner(object):
     def add_subaction(self, action):
         rot = tf.transformations.quaternion_from_euler(math.pi,0,0)
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
-        if action.type == 'pick':
+        if action.type == action.PICK:
+            print "pick"
             move_above = Action()
             move_above.type = "motion"
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
             move_safe = copy.deepcopy(move_above)
             move_safe.pose.pose.position.y = 0
-            move_safe.pose.pose.position.z = .4
+            move_safe.pose.pose.position.z = .5
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z-=.01
@@ -47,14 +50,15 @@ class Planner(object):
             self._plan.append(move_to)
             self._plan.append(grasp)
         
-        if action.type == 'place':
+        if action.type == action.PLACE:
+            print "place"
             move_above = Action()
             move_above.type = "motion"
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
             move_safe = copy.deepcopy(move_above)
             move_safe.pose.pose.position.y = 0
-            move_safe.pose.pose.position.z = .4
+            move_safe.pose.pose.position.z = .5
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z+=.05
@@ -67,8 +71,18 @@ class Planner(object):
         
     def on_command(self,msg):
         print "new command"
-        for sub_action in msg.core_action:
-            self.add_subaction(sub_action)
+        current_action_id = 0
+        while len(msg.core_action)>0:
+            print len(msg.core_action)
+            current_action = []
+            for sub_action in msg.core_action:
+                if sub_action.id == current_action_id:
+                    current_action.append(sub_action)
+            current_action = sorted(current_action,key=lambda action: action.type)
+            for sub_action in current_action:
+                msg.core_action.remove(sub_action)
+                self.add_subaction(sub_action)
+            current_action_id += 1
 
         print "start plan"
         self._running = True

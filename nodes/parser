@@ -55,7 +55,7 @@ class Parser(object):
         pose.header.stamp=rospy.Time.now()
         self._pose_pub.publish(pose)
 
-    def publish_sphere(self,point,name,i,scale = .02,alpha=1):
+    def publish_sphere(self,point,name,i,scale,color,alpha=1):
         marker = Marker()
         marker.header.frame_id = "rgb_camera_link"
         marker.pose.position = point
@@ -64,13 +64,18 @@ class Parser(object):
         marker.scale.x=scale
         marker.scale.y=scale
         marker.scale.z=scale
-        marker.color.r=1
+        #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
+        color=color.lstrip('#')
+        (r,g,b) = tuple(int(color[i:i+2], 16)/255. for i in (0, 2, 4))
+        marker.color.r = r
+        marker.color.g = g
+        marker.color.b = b
         marker.color.a=alpha
         marker.type = marker.SPHERE
         marker.pose.orientation.w=1
         self._marker_pub.publish(marker)
 
-    def publish_arrow(self,name, index, points,scale=.01,alpha=.5):
+    def publish_arrow(self,name, index, points,scale,color,alpha=.5):
         marker = Marker()
         marker.header.frame_id = "rgb_camera_link"
         marker.ns = name
@@ -78,7 +83,12 @@ class Parser(object):
         marker.scale.x=scale/2
         marker.scale.y=scale
         marker.scale.z=scale
-        marker.color.r=1
+        #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
+        color=color.lstrip('#')
+        (r,g,b) = tuple(int(color[i:i+2], 16)/255. for i in (0, 2, 4))
+        marker.color.r = r
+        marker.color.g = g
+        marker.color.b = b
         marker.points = points
         marker.color.a=alpha
         marker.type = marker.ARROW
@@ -114,6 +124,7 @@ class Parser(object):
             x = int(cmd[2])
             y = int(cmd[3])
             width = int(cmd[4])
+            color = cmd[7]
             if name == 'arrow':
                 angle = int(cmd[6])*2*np.pi/360.+np.pi
                 x_tail = x+int(width/2*np.cos(angle))
@@ -123,15 +134,18 @@ class Parser(object):
             d = image[y,x]
             print "depth: "+str(d)
             if d == 0.0:
+                print name
+                print index
                 print "bad depth"
                 return None
 
             point = self.get_xyz_from_pixel(x,y,d)
             if name == 'circle':
-                self.publish_sphere(point,name,index,scale=width*point.z/1000,alpha=.5)
+                self.publish_sphere(point,name,index,scale=width*point.z/1000,color=color,alpha=.5)
 
                 action = Action()
-                action.type = 'pick'
+                action.type = action.PICK
+                action.id = index
                 action.pose.header.frame_id = "rgb_camera_link"
                 action.pose.pose.position = point
                 action.pose.pose.orientation.w = 1
@@ -142,10 +156,11 @@ class Parser(object):
             if name == 'arrow':
                 point2 = self.get_xyz_from_pixel(x_tail,y_tail,d)
                 points=[point2,point]
-                self.publish_arrow(name, index, points,scale=.05,alpha=.5)
+                self.publish_arrow(name, index, points,scale=.05,color=color,alpha=.5)
 
                 action = Action()
-                action.type = 'place'
+                action.id = index
+                action.type = action.PLACE 
                 action.pose.header.frame_id = "rgb_camera_link"
                 action.pose.pose.position = point
                 action.pose.pose.orientation.w = 1
