@@ -7,12 +7,14 @@ import signal
 import ros_numpy
 import sys
 import cv2
+from threading import Event
 from std_msgs.msg import String
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import PoseStamped, Point
+from authoring_msgs.msg import Action, Command
 import tf
 
 REFERENCE_FRAME='panda_link0'
@@ -21,31 +23,15 @@ class Parser(object):
     def __init__(self):
         self._tl = tf.TransformListener()
         self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
-        self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self.on_image)
-        self._cloud_sub = rospy.Subscriber("points2", PointCloud2, self.on_cloud)
-        self._info_sub = rospy.Subscriber("rgb/camera_info", CameraInfo, self.on_info) 
         self._pose_pub = rospy.Publisher("/grasping_point",PoseStamped,queue_size=1)
+        self._command_pub = rospy.Publisher("/planner/command", Command,queue_size=1)
         self._marker_pub = rospy.Publisher("/gui/markers",Marker,queue_size=1)
-        self._bridge = CvBridge()
-        self._cv_image = None
-        self._model = None
-        self._image = None
-        self._cloud = None
+        self._model = image_geometry.PinholeCameraModel()
+        self._model.fromCameraInfo(rospy.wait_for_message("rgb/camera_info", CameraInfo))
+
         self._br = tf.TransformBroadcaster()
 
-    def on_info(self, message):
-        if self._model is None:
-            self._model = image_geometry.PinholeCameraModel()
-            self._model.fromCameraInfo(message)
-
-    def get_xyz_from_pixel(self,x,y):
-        d = self._image[y,x]
-        print "depth: "+str(d)
-        if d == 0.0:
-            print "bad depth"
-            return None
-        rect = None
-        self._model.rectifyImage(self._cv_image,rect)
+    def get_xyz_from_pixel(self,x,y,d):
         p = [x,y]
         p = self._model.rectifyPoint(p)
         p3d = self._model.projectPixelTo3dRay(p)
@@ -69,7 +55,7 @@ class Parser(object):
         pose.header.stamp=rospy.Time.now()
         self._pose_pub.publish(pose)
 
-    def publish_marker(self,point,name,i,scale = .02,alpha=1):
+    def publish_sphere(self,point,name,i,scale = .02,alpha=1):
         marker = Marker()
         marker.header.frame_id = "rgb_camera_link"
         marker.pose.position = point
@@ -84,34 +70,92 @@ class Parser(object):
         marker.pose.orientation.w=1
         self._marker_pub.publish(marker)
 
+    def publish_arrow(self,name, index, points,scale=.01,alpha=.5):
+        marker = Marker()
+        marker.header.frame_id = "rgb_camera_link"
+        marker.ns = name
+        marker.id = index
+        marker.scale.x=scale/2
+        marker.scale.y=scale
+        marker.scale.z=scale
+        marker.color.r=1
+        marker.points = points
+        marker.color.a=alpha
+        marker.type = marker.ARROW
+        marker.pose.orientation.w=1
+        self._marker_pub.publish(marker)
+
     def on_command(self, message):
         list_actions = message.data.split(";")
+        command_type = list_actions[0]
+        if command_type == 'remove':
+            cmd = list_actions[1].split(":")
 
-        for i,action in enumerate(list_actions):
+            marker = Marker()
+            if cmd[0] == "all":
+                marker.action = marker.DELETEALL
+                self._marker_pub.publish(marker)
+                return
+            marker.action = marker.DELETE
+            marker.ns = cmd[0]
+            marker.id = int(cmd[1])
+            self._marker_pub.publish(marker)
+            return
+        actions = []
+
+        list_actions.pop(0)
+        image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image))
+
+        for action in list_actions:
             cmd = action.split(":")
         
             name = cmd[0]
-            x = int(cmd[1])
-            y = int(cmd[2])
-            if self._image is not None and self._model is not None:
-                point = self.get_xyz_from_pixel(x,y)
-                if point is None:
-                    return
-                self.publish_pose(point)
-                #self._br.sendTransform(p3d,(0,0,0,1), rospy.Time.now(), "click","rgb_camera_link")
-                if name == 'circle':
-                    width = int(cmd[3])
-                    self.publish_marker(point,name,i,scale=width/point.z/1500,alpha=.5)
-                if name == 'click':
-                    self.publish_marker(point)
+            index = int(cmd[1])
+            x = int(cmd[2])
+            y = int(cmd[3])
+            width = int(cmd[4])
+            if name == 'arrow':
+                angle = int(cmd[6])*2*np.pi/360.+np.pi
+                x_tail = x+int(width/2*np.cos(angle))
+                y_tail = y+int(width/2*np.sin(angle))
+                x-=int(width/2*np.cos(angle))
+                y-=int(width/2*np.sin(angle))
+            d = image[y,x]
+            print "depth: "+str(d)
+            if d == 0.0:
+                print "bad depth"
+                return None
 
+            point = self.get_xyz_from_pixel(x,y,d)
+            if name == 'circle':
+                self.publish_sphere(point,name,index,scale=width*point.z/1000,alpha=.5)
 
-    def on_image(self, message):
-        self._image = ros_numpy.numpify(message)
-        self._cv_image = self._bridge.imgmsg_to_cv2(message, "passthrough")
+                action = Action()
+                action.type = 'pick'
+                action.pose.header.frame_id = "rgb_camera_link"
+                action.pose.pose.position = point
+                action.pose.pose.orientation.w = 1
+                actions.append(action)
 
-    def on_cloud(self, message):
-        self._cloud = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(message)
+            if name == 'click':
+                self.publish_marker(point)
+            if name == 'arrow':
+                point2 = self.get_xyz_from_pixel(x_tail,y_tail,d)
+                points=[point2,point]
+                self.publish_arrow(name, index, points,scale=.05,alpha=.5)
+
+                action = Action()
+                action.type = 'place'
+                action.pose.header.frame_id = "rgb_camera_link"
+                action.pose.pose.position = point
+                action.pose.pose.orientation.w = 1
+                actions.append(action)
+
+        if command_type == "exec":
+            cmd = Command()
+            for action in actions:
+                cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
 
     def run(self):
         rospy.spin()

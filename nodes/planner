@@ -7,9 +7,10 @@ import tf
 import PyKDL
 import copy
 
-from geometry_msgs.msg import Twist,Pose,PoseStamped
+from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion
 from nav_msgs.msg import Path
 from std_msgs.msg import String
+from authoring_msgs.msg import Action,Command
 
 REFERENCE_FRAME='panda_link0'
 
@@ -18,37 +19,101 @@ class Planner(object):
         self._tl = tf.TransformListener()
         rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
         self._path_pub = rospy.Publisher("/panda/path", Path, queue_size=0)
-        self._goal_sub = rospy.Subscriber("/grasping_point", PoseStamped,self.on_goal)
+        self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist, queue_size=5)
+        self._command_sub = rospy.Subscriber("/planner/command", Command,self.on_command)
         self._string_pub = rospy.Publisher("/panda/commands",String, queue_size=1)
-        self._goals = []
-        print "ready"
+        self._plan = []
+        self._running = False
+        self._vel_pub.publish(Twist())
 
-    def on_goal(self,msg):
-        print "new goal"
-        goal = self._tl.transformPose(REFERENCE_FRAME, msg)
-        self._goals=[]
-        approach_point = copy.deepcopy(goal)
-        approach_point.pose.position.z += .05
-        self._goals.append(approach_point)
-        self._goals.append(goal)
-        self._goals.append(approach_point)
+    def add_subaction(self, action):
+        rot = tf.transformations.quaternion_from_euler(math.pi,0,0)
+        q = Quaternion(rot[0],rot[1],rot[2],rot[3])
+        if action.type == 'pick':
+            move_above = Action()
+            move_above.type = "motion"
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
+            move_above.pose.pose.orientation = q
+            move_safe = copy.deepcopy(move_above)
+            move_safe.pose.pose.position.y = 0
+            move_safe.pose.pose.position.z = .4
+            move_to = copy.deepcopy(move_above)
+            move_above.pose.pose.position.z+=.1
+            move_to.pose.pose.position.z-=.01
+            grasp = Action()
+            grasp.type="grasp"
+            self._plan.append(move_safe)
+            self._plan.append(move_above)
+            self._plan.append(move_to)
+            self._plan.append(grasp)
+        
+        if action.type == 'place':
+            move_above = Action()
+            move_above.type = "motion"
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
+            move_above.pose.pose.orientation = q
+            move_safe = copy.deepcopy(move_above)
+            move_safe.pose.pose.position.y = 0
+            move_safe.pose.pose.position.z = .4
+            move_to = copy.deepcopy(move_above)
+            move_above.pose.pose.position.z+=.1
+            move_to.pose.pose.position.z+=.05
+            release = Action()
+            release.type="release"
+            self._plan.append(move_safe)
+            self._plan.append(move_above)
+            self._plan.append(move_to)
+            self._plan.append(release)
+        
+    def on_command(self,msg):
+        print "new command"
+        for sub_action in msg.core_action:
+            self.add_subaction(sub_action)
+
+        print "start plan"
+        self._running = True
+        self.update_plan()
 
     def run(self):
         r = rospy.Rate(100)
         while not rospy.is_shutdown():
-            self.update_path()
+            self.update_plan()
             r.sleep()
 
-    def check_goal(self):
+    def next_sub_action(self):
+        self._plan.pop(0)
+        self._vel_pub.publish(Twist())
+        print len(self._plan)
+
+    def update_plan(self):
+        if not self._running:
+            return
+        if len(self._plan) == 0:
+            print "Finished"
+            self._running = False
+            return
+
+        current_action = self._plan[0]
+        if current_action.type == 'motion':
+            if self.go_to_position(current_action.pose):
+                self.next_sub_action()
+        if current_action.type == 'grasp':
+            if self.grasp():
+                self.next_sub_action()
+        if current_action.type == 'release':
+            if self.release():
+                self.next_sub_action()
+
+    def bound(self, val, b):
+        return min(max(val,-b),b)
+
+    def go_to_position(self, goal):
         try:
             (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, 'end_effector', rospy.Time(0))
         except:
             print("fail")
             return
-        if len(self._goals) == 0:
-            return
 
-        goal = self._goals[0]
         pose = Pose()
         pose.position.x = goal.pose.position.x-trans[0]
         pose.position.y = goal.pose.position.y-trans[1]
@@ -65,18 +130,36 @@ class Planner(object):
 
         threshold = .01
         if math.fabs(pose.position.x) < threshold and math.fabs(pose.position.y) < threshold and math.fabs(pose.position.z) <threshold:
-            print("close enough")
-            self._goals.pop(0)
-            if len(self._goals) == 1:
-                cmd = String()
-                cmd.data = "toggleGrip"
-                self._string_pub.publish(cmd)
-                rospy.sleep(2)
+            print "arrived sub point"
+            return True
+        else:
+            twist = Twist()
+            max_vel = .15
+            P=8
+            twist.linear.x=self.bound(P*pose.position.x,max_vel)
+            twist.linear.y=self.bound(P*pose.position.y,max_vel)
+            twist.linear.z=self.bound(P*pose.position.z,max_vel)
+            twist.angular.x=self.bound(angle[0],max_vel)
+            twist.angular.y=self.bound(angle[1],max_vel)
+            twist.angular.z=self.bound(angle[2],max_vel)
+            self._vel_pub.publish(twist)
+        return False
 
+    def grasp(self):
+        cmd = String()
+        cmd.data = "toggleGrip"
+        self._string_pub.publish(cmd)
+        rospy.sleep(1)
+        return True
 
-    def update_path(self):
-        self.check_goal()
+    def release(self):
+        cmd = String()
+        cmd.data = "toggleGrip"
+        self._string_pub.publish(cmd)
+        rospy.sleep(1)
+        return True
 
+    def display_path(self):
         path = Path()
         path.header.frame_id = REFERENCE_FRAME
         (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, 'end_effector', rospy.Time(0))
@@ -94,10 +177,11 @@ class Planner(object):
             path.poses.append(i)
         self._path_pub.publish(path)
 
+ 
+
     def signal_handler(self, signal, frame):
         #publish empty path
-        path = Path()
-        self._path_pub.publish(path)
+        self._vel_pub.publish(Twist())
         sys.exit(0)
 
 if __name__ == "__main__":
