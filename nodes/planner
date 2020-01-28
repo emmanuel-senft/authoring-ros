@@ -6,6 +6,7 @@ import math
 import tf
 import PyKDL
 import copy
+import numpy as np
 
 from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion
 from nav_msgs.msg import Path
@@ -37,18 +38,15 @@ class Planner(object):
             move_above.type = "motion"
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
-            move_safe = copy.deepcopy(move_above)
-            move_safe.pose.pose.position.y = 0
-            move_safe.pose.pose.position.z = .5
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.1
+            move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z-=.01
             grasp = Action()
             grasp.type="grasp"
-            self._plan.append(move_safe)
             self._plan.append(move_above)
             self._plan.append(move_to)
             self._plan.append(grasp)
+            self._plan.append(move_above)
         
         if action.type == action.PLACE:
             print "place"
@@ -56,18 +54,63 @@ class Planner(object):
             move_above.type = "motion"
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
+            move_above.pose.pose.orientation = q
             move_safe = copy.deepcopy(move_above)
             move_safe.pose.pose.position.y = 0
             move_safe.pose.pose.position.z = .5
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.1
+            move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z+=.05
             release = Action()
             release.type="release"
-            self._plan.append(move_safe)
             self._plan.append(move_above)
             self._plan.append(move_to)
             self._plan.append(release)
+            self._plan.append(move_safe)
+        
+        if action.type == action.SCREW:
+            print "screw"
+            angle = 3*np.pi/5.
+            rot = tf.transformations.quaternion_from_euler(math.pi,0,-angle)
+            q_plus = Quaternion(rot[0],rot[1],rot[2],rot[3])
+            rot = tf.transformations.quaternion_from_euler(math.pi,0,angle)
+            q_minus = Quaternion(rot[0],rot[1],rot[2],rot[3])
+ 
+            move_above = Action()
+            move_above.type = "motion"
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
+            move_above.pose.pose.orientation = q
+            move_to = copy.deepcopy(move_above)
+            move_above.pose.pose.position.z+=.15
+            move_to.pose.pose.position.z+=.13
+
+            plus_high = copy.deepcopy(move_above)
+            plus_high.pose.pose.orientation = q_plus
+            minus_high = copy.deepcopy(move_above)
+            minus_high.pose.pose.orientation = q_minus
+
+            plus_low = copy.deepcopy(move_to)
+            plus_low.pose.pose.orientation = q_plus
+            minus_low = copy.deepcopy(move_to)
+            minus_low.pose.pose.orientation = q_minus
+            plus_low2 = copy.deepcopy(plus_low)
+            plus_low2.pose.pose.position.z-=.005
+
+            minus_low2 = copy.deepcopy(minus_low)
+            minus_low2.pose.pose.position.z-=.005
+
+            release = Action()
+            release.type="release"
+            self._plan.append(move_above)
+            self._plan.append(minus_high)
+            self._plan.append(minus_low)
+            self._plan.append(plus_low)
+            self._plan.append(plus_high)
+            self._plan.append(minus_high)
+            self._plan.append(minus_low2)
+            self._plan.append(plus_low2)
+            self._plan.append(plus_high)
+            self._plan.append(move_above)
         
     def on_command(self,msg):
         print "new command"
@@ -134,16 +177,24 @@ class Planner(object):
         pose.position.z = goal.pose.position.z-trans[2]
 
         #From https://answers.ros.org/question/10124/relative-rotation-between-two-quaternions/
+
         qp = PyKDL.Rotation.Quaternion(rot[0],rot[1],rot[2],rot[3])
+        current_angle = qp.GetRPY()
 
         rot = goal.pose.orientation
         qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
         q = qg*qp.Inverse()
 
-        angle = q.GetRPY()
+        difference_angle = q.GetRPY()
+        angle  = list(difference_angle)
+        d = current_angle[2] + difference_angle[2]
+        if d > np.pi:
+            angle[2] -= 2 * np.pi
+        if d < -np.pi:
+            angle[2] += 2 * np.pi 
 
         threshold = .01
-        if math.fabs(pose.position.x) < threshold and math.fabs(pose.position.y) < threshold and math.fabs(pose.position.z) <threshold:
+        if math.fabs(pose.position.x) < threshold and math.fabs(pose.position.y) < threshold and math.fabs(pose.position.z) <threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
             print "arrived sub point"
             return True
         else:
@@ -153,11 +204,14 @@ class Planner(object):
             twist.linear.x=self.bound(P*pose.position.x,max_vel)
             twist.linear.y=self.bound(P*pose.position.y,max_vel)
             twist.linear.z=self.bound(P*pose.position.z,max_vel)
-            twist.angular.x=self.bound(angle[0],max_vel)
-            twist.angular.y=self.bound(angle[1],max_vel)
-            twist.angular.z=self.bound(angle[2],max_vel)
+            twist.angular.x=self.bound(P*angle[0],6*max_vel)
+            twist.angular.y=self.bound(P*angle[1],6*max_vel)
+            twist.angular.z=self.bound(P*angle[2],6*max_vel)
             self._vel_pub.publish(twist)
         return False
+
+    def normalise_angle(self, angle):
+        return [(a+np.pi)%(2*np.pi)-np.pi for a in angle]
 
     def grasp(self):
         cmd = String()

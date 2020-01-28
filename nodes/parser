@@ -16,6 +16,7 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import PoseStamped, Point
 from authoring_msgs.msg import Action, Command
 import tf
+import copy
 
 REFERENCE_FRAME='panda_link0'
 
@@ -54,6 +55,39 @@ class Parser(object):
         pose.pose.orientation.w=q[3]
         pose.header.stamp=rospy.Time.now()
         self._pose_pub.publish(pose)
+
+    def publish_spiral(self,point,name,i,scale,color,alpha=1):
+        marker = Marker()
+        marker.header.frame_id = REFERENCE_FRAME
+        #Get everything in the panda pose
+        pose = PoseStamped()
+        pose.pose.position=point
+        pose.pose.orientation.w=1
+        pose.header.frame_id = "rgb_camera_link"
+        pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+ 
+        marker.pose.position = pose.pose.position
+        marker.ns = name
+        marker.id = i
+        marker.scale.x=scale/20.
+        #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
+        color=color.lstrip('#')
+        (r,g,b) = tuple(int(color[i:i+2], 16)/255. for i in (0, 2, 4))
+        marker.color.r = r
+        marker.color.g = g
+        marker.color.b = b
+        marker.color.a=alpha
+        marker.type = marker.LINE_STRIP
+        for i in range(100):
+            angle = i*np.pi/25.
+            r = scale/2*i/100
+            p = Point()
+            p.x+=r*np.cos(angle)
+            p.y+=r*np.sin(angle)
+            marker.points.append(p)
+
+        marker.pose.orientation.w=1
+        self._marker_pub.publish(marker)
 
     def publish_sphere(self,point,name,i,scale,color,alpha=1):
         marker = Marker()
@@ -140,31 +174,24 @@ class Parser(object):
                 return None
 
             point = self.get_xyz_from_pixel(x,y,d)
+            action = Action()
+            if name == 'spiral':
+                self.publish_spiral(point,name,index,scale=width*point.z/1000,color=color,alpha=.5)
+                action.type = action.SCREW
             if name == 'circle':
                 self.publish_sphere(point,name,index,scale=width*point.z/1000,color=color,alpha=.5)
-
-                action = Action()
                 action.type = action.PICK
-                action.id = index
-                action.pose.header.frame_id = "rgb_camera_link"
-                action.pose.pose.position = point
-                action.pose.pose.orientation.w = 1
-                actions.append(action)
-
-            if name == 'click':
-                self.publish_marker(point)
             if name == 'arrow':
                 point2 = self.get_xyz_from_pixel(x_tail,y_tail,d)
                 points=[point2,point]
                 self.publish_arrow(name, index, points,scale=.05,color=color,alpha=.5)
-
-                action = Action()
-                action.id = index
                 action.type = action.PLACE 
-                action.pose.header.frame_id = "rgb_camera_link"
-                action.pose.pose.position = point
-                action.pose.pose.orientation.w = 1
-                actions.append(action)
+
+            action.id = index
+            action.pose.header.frame_id = "rgb_camera_link"
+            action.pose.pose.position = point
+            action.pose.pose.orientation.w = 1
+            actions.append(action)
 
         if command_type == "exec":
             cmd = Command()
