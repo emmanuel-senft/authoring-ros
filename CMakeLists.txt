@@ -63,6 +63,11 @@ install(DIRECTORY
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
+install(FILES
+install(FILES
+    rviz/joint_viewer.rviz
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/rviz
+)
 
 catkin_install_python(PROGRAMS
     nodes/rviz_viewer.py

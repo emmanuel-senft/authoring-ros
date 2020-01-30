@@ -32,6 +32,7 @@ if __name__ == '__main__':
     
     rospack = rospkg.RosPack()
     path_to_src = rospack.get_path('relaxed_ik')+"/src"
+    path_to_src2 = rospack.get_path('authoring')
 
     y = get_relaxedIK_yaml_obj(path_to_src)
 
@@ -57,7 +58,7 @@ if __name__ == '__main__':
 
     uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
     roslaunch.configure_logging(uuid)
-    launch_path = path_to_src + '/../launch/joint_state_pub_nojsp.launch'
+    launch_path = path_to_src2 + '/launch/joint_state_pub_nojsp.launch'
     launch = roslaunch.parent.ROSLaunchParent(uuid, [launch_path])
     launch.start()
 
