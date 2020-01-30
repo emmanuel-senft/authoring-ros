@@ -64,6 +64,10 @@ install(DIRECTORY
 )
 
 install(FILES
+    config/transforms.yaml
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)
+
 install(FILES
     rviz/joint_viewer.rviz
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/rviz
@@ -76,6 +80,8 @@ catkin_install_python(PROGRAMS
     nodes/planner
     nodes/mover
     nodes/poi
+    nodes/static_publisher
+    nodes/tf_printer
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 

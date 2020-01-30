@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+import rospy
+import sys
+import tf2_ros
+import geometry_msgs.msg
+import rospkg
+import yaml
+
+
+if __name__ == '__main__':
+        rospy.init_node('tf_printer')
+
+        tfBuffer = tf2_ros.Buffer()
+        tl = tf2_ros.TransformListener(tfBuffer)
+
+        rospack = rospkg.RosPack()
+        name=rospy.get_param('~file_name')
+        transform = rospy.get_param('~transform')
+        path = rospack.get_path('authoring')+'/config/'+name
+        with open(path) as f:
+            doc = yaml.full_load(f)
+
+        frame = doc[transform]
+        frame_component = frame.split(" ")
+
+        parent = frame_component[8]
+        child = frame_component[7]
+
+        rate = rospy.Rate(10.0)
+
+        rospy.sleep(5.)
+        done = False
+        while not done:
+            try:
+                trans = tfBuffer.lookup_transform(child, parent, rospy.Time())
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                rate.sleep()
+                print "error"
+                continue
+            trans_str = ""
+            trans_str+=str(trans.transform.translation.x)+" "
+            trans_str+=str(trans.transform.translation.y)+" "
+            trans_str+=str(trans.transform.translation.z)+" "
+            trans_str+=str(trans.transform.rotation.x)+" "
+            trans_str+=str(trans.transform.rotation.y)+" "
+            trans_str+=str(trans.transform.rotation.z)+" "
+            trans_str+=str(trans.transform.rotation.w)+" "
+
+            trans_str += child + " " + parent
+            print trans_str
+            done = True
+        doc[transform] = trans_str
+        with open(path,'w') as f:
+            document = yaml.dump(doc,f)
+
+        with open("/home/senft/src/authoring-ros/config/"+name,'w') as f:
+            document = yaml.dump(doc,f)
+
+
+

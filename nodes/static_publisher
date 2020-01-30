@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+import rospy
+import sys
+import tf2_ros
+import geometry_msgs.msg
+import rospkg
+import yaml
+
+if __name__ == '__main__':
+        rospy.init_node('static_tf2_broadcaster')
+        rospack = rospkg.RosPack()
+        f=rospy.get_param('~file_name')
+        transform = rospy.get_param('~transform')
+        path = rospack.get_path('authoring')+'/config/'+f
+        with open(path) as f:
+            doc = yaml.full_load(f)
+
+        frame = doc[transform]
+        frame_component = frame.split(" ")
+        broadcaster = tf2_ros.StaticTransformBroadcaster()
+        static_transformStamped = geometry_msgs.msg.TransformStamped()
+
+        static_transformStamped.header.stamp = rospy.Time.now()
+        static_transformStamped.header.frame_id = frame_component[7]
+        static_transformStamped.child_frame_id = frame_component[8]
+
+        static_transformStamped.transform.translation.x = float(frame_component[0])
+        static_transformStamped.transform.translation.y = float(frame_component[1])
+        static_transformStamped.transform.translation.z = float(frame_component[2])
+
+        static_transformStamped.transform.rotation.x = float(frame_component[3])
+        static_transformStamped.transform.rotation.y = float(frame_component[4])
+        static_transformStamped.transform.rotation.z = float(frame_component[5])
+        static_transformStamped.transform.rotation.w = float(frame_component[6])
+
+        broadcaster.sendTransform(static_transformStamped)
+        rospy.spin()
+
