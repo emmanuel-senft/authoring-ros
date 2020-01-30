@@ -75,6 +75,7 @@ catkin_install_python(PROGRAMS
     nodes/parser
     nodes/planner
     nodes/mover
+    nodes/poi
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 

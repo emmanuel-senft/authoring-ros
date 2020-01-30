@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="authoring" type="parser" name="parser"/>
+    <node pkg="authoring" type="planner" name="planner"/>
+    <node pkg="authoring" type="poi" name="poi"/>
+</launch>

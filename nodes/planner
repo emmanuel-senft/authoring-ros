@@ -40,7 +40,7 @@ class Planner(object):
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.15
-            move_to.pose.pose.position.z-=.01
+            move_to.pose.pose.position.z-=.005
             grasp = Action()
             grasp.type="grasp"
             self._plan.append(move_above)
@@ -94,10 +94,10 @@ class Planner(object):
             minus_low = copy.deepcopy(move_to)
             minus_low.pose.pose.orientation = q_minus
             plus_low2 = copy.deepcopy(plus_low)
-            plus_low2.pose.pose.position.z-=.005
+            plus_low2.pose.pose.position.z-=.003
 
             minus_low2 = copy.deepcopy(minus_low)
-            minus_low2.pose.pose.position.z-=.005
+            minus_low2.pose.pose.position.z-=.003
 
             release = Action()
             release.type="release"
@@ -193,7 +193,7 @@ class Planner(object):
         if d < -np.pi:
             angle[2] += 2 * np.pi 
 
-        threshold = .01
+        threshold = .001
         if math.fabs(pose.position.x) < threshold and math.fabs(pose.position.y) < threshold and math.fabs(pose.position.z) <threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
             print "arrived sub point"
             return True
@@ -217,7 +217,7 @@ class Planner(object):
         cmd = String()
         cmd.data = "toggleGrip"
         self._string_pub.publish(cmd)
-        rospy.sleep(1)
+        rospy.sleep(2)
         return True
 
     def release(self):

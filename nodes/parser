@@ -13,7 +13,7 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray
 from authoring_msgs.msg import Action, Command
 import tf
 import copy
@@ -23,14 +23,27 @@ REFERENCE_FRAME='panda_link0'
 class Parser(object):
     def __init__(self):
         self._tl = tf.TransformListener()
-        self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
+        rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
         self._pose_pub = rospy.Publisher("/grasping_point",PoseStamped,queue_size=1)
         self._command_pub = rospy.Publisher("/planner/command", Command,queue_size=1)
         self._marker_pub = rospy.Publisher("/gui/markers",Marker,queue_size=1)
         self._model = image_geometry.PinholeCameraModel()
         self._model.fromCameraInfo(rospy.wait_for_message("rgb/camera_info", CameraInfo))
+        self._feedback_pub = rospy.Publisher("/gui/feedback",String,queue_size=1)
 
         self._br = tf.TransformBroadcaster()
+        self._poi = []
+        self._poi_sub = rospy.Subscriber("/poi", PoseArray, self.on_poi, queue_size = 1)
+        self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
+
+    def on_poi(self, msg):
+        for p in msg.poses:
+            pose = PoseStamped()
+            pose.header = msg.header
+            pose.pose = p
+            pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+            self._poi.append(pose)
+        print "got "+str(len(self._poi))+" pois"
 
     def get_xyz_from_pixel(self,x,y,d):
         p = [x,y]
@@ -60,13 +73,8 @@ class Parser(object):
         marker = Marker()
         marker.header.frame_id = REFERENCE_FRAME
         #Get everything in the panda pose
-        pose = PoseStamped()
-        pose.pose.position=point
-        pose.pose.orientation.w=1
-        pose.header.frame_id = "rgb_camera_link"
-        pose = self._tl.transformPose(REFERENCE_FRAME, pose)
  
-        marker.pose.position = pose.pose.position
+        marker.pose.position = point
         marker.ns = name
         marker.id = i
         marker.scale.x=scale/20.
@@ -91,7 +99,7 @@ class Parser(object):
 
     def publish_sphere(self,point,name,i,scale,color,alpha=1):
         marker = Marker()
-        marker.header.frame_id = "rgb_camera_link"
+        marker.header.frame_id = REFERENCE_FRAME
         marker.pose.position = point
         marker.ns = name
         marker.id = i
@@ -111,7 +119,7 @@ class Parser(object):
 
     def publish_arrow(self,name, index, points,scale,color,alpha=.5):
         marker = Marker()
-        marker.header.frame_id = "rgb_camera_link"
+        marker.header.frame_id = REFERENCE_FRAME
         marker.ns = name
         marker.id = index
         marker.scale.x=scale/2
@@ -171,24 +179,32 @@ class Parser(object):
                 print name
                 print index
                 print "bad depth"
+                self._feedback_pub.publish(String("bad_depth"))
                 return None
+            self._feedback_pub.publish(String("good_depth"))
 
+            #Still in camera frame
             point = self.get_xyz_from_pixel(x,y,d)
+            scale = width*point.z/1000
+            #And transform to reference frame
+            point = self.snap_to_poi(point,scale)
+
             action = Action()
             if name == 'spiral':
-                self.publish_spiral(point,name,index,scale=width*point.z/1000,color=color,alpha=.5)
+                self.publish_spiral(point,name,index,scale=scale,color=color,alpha=.5)
                 action.type = action.SCREW
             if name == 'circle':
-                self.publish_sphere(point,name,index,scale=width*point.z/1000,color=color,alpha=.5)
+                self.publish_sphere(point,name,index,scale=scale,color=color,alpha=.5)
                 action.type = action.PICK
             if name == 'arrow':
                 point2 = self.get_xyz_from_pixel(x_tail,y_tail,d)
+                point2 = self.snap_to_poi(point2, scale)
                 points=[point2,point]
                 self.publish_arrow(name, index, points,scale=.05,color=color,alpha=.5)
                 action.type = action.PLACE 
 
             action.id = index
-            action.pose.header.frame_id = "rgb_camera_link"
+            action.pose.header.frame_id = REFERENCE_FRAME
             action.pose.pose.position = point
             action.pose.pose.orientation.w = 1
             actions.append(action)
@@ -198,6 +214,27 @@ class Parser(object):
             for action in actions:
                 cmd.core_action.append(action)
             self._command_pub.publish(cmd)
+
+    def snap_to_poi(self,point,scale):
+        pose = PoseStamped()
+        pose.pose.position=point
+        pose.pose.orientation.w=1
+        pose.header.frame_id = "rgb_camera_link"
+        pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+        point = pose.pose.position
+        d_min=scale
+        to_return = point
+        for p in self._poi:
+            d = self.distance(p.pose.position,point)
+            if d < scale/2:
+                d_min = scale
+                to_return = p.pose.position
+                print "snapping"
+        return to_return
+
+    def distance(self, p1, p2):
+        return np.sqrt((p1.x-p2.x)**2+(p1.y-p2.y)**2+(p1.z-p2.z)**2)
+
 
     def run(self):
         rospy.spin()

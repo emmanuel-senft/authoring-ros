@@ -2,6 +2,7 @@
 <launch>
     <arg name="detect_camera" default="false"/>
     <arg name="rgb_point_cloud" default="false"/>
+    <arg name="with_utils" default="false"/>
     <group if="$(arg detect_camera)">
         <include file="$(find authoring)/launch/detect.launch"/>  
     </group>
@@ -12,5 +13,12 @@
     <include file="$(find authoring)/launch/kinect.launch">
         <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
     </include>
+
     <include file="$(find authoring)/launch/rviz_viewer.launch"/>  
+
+    <group if="$(arg with_utils)">
+        <include file="$(find authoring)/launch/utils.launch">  
+        </include>
+    </group>
+
 </launch>

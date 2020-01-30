@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+import numpy as np
+import math
+import rospy
+import signal
+import sys
+from geometry_msgs.msg import Pose, PoseArray
+import tf
+
+REFERENCE_FRAME='tag_2'
+
+class Poi(object):
+    def __init__(self):
+        self._poses_pub = rospy.Publisher("/poi",PoseArray,queue_size=1,latch=True)
+        self.publish_poses()
+
+        
+    def publish_poses(self):
+        array = PoseArray()
+        array.header.frame_id = REFERENCE_FRAME
+
+        pose = Pose()
+        pose.position.x=.160
+        pose.position.y=.061
+        pose.position.z=-.125
+        pose.orientation.w=1
+        array.poses.append(pose)
+        self._poses_pub.publish(array)
+
+    def run(self):
+        rospy.spin()
+
+    def signal_handler(self, signal, frame):
+        sys.exit()
+
+if __name__ == "__main__":
+    rospy.init_node('poi')
+    poi = Poi()
+    signal.signal(signal.SIGINT, poi.signal_handler)
+    poi.run()
