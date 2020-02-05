@@ -6,8 +6,10 @@
     <arg name="with_utils" default="false"/>
 
     <group if="$(arg detect_camera)">
-        <include file="$(find authoring)/launch/detect.launch"/> 
-        <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0.05025 -.098 0 .707106781 0.707106781 0 0 tag_4 panda_link0 100" /> 
+        <include file="$(find authoring)/launch/detect.launch">  
+            <arg name="default_marker_size" default="106"/>
+        </include>
+        <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0.0504 -.085 -0.005 .707106781 0.707106781 0 0 tag_4 panda_link0 100" /> 
     </group>
 
     <group unless="$(arg detect_camera)">
@@ -34,11 +36,21 @@
         <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
     </include>
 
-    <include file="$(find authoring)/launch/rviz_viewer.launch"/>  
+    <include file="$(find authoring)/launch/joint_state_pub.launch"/>  
 
     <group if="$(arg with_utils)">
         <include file="$(find authoring)/launch/utils.launch">  
         </include>
     </group>
+
+    <node pkg="authoring" type="static_publisher" name="sim_ee_static_publisher">
+        <param name="file_name" type="string" value="transforms.yaml" />
+        <param name="transform" type="string" value="sim_ee_transform" />
+    </node>
+
+    <node pkg="authoring" type="static_publisher" name="rel_ik_static_publisher">
+        <param name="file_name" type="string" value="transforms.yaml" />
+        <param name="transform" type="string" value="relaxed_ik_transform" />
+    </node>
 
 </launch>

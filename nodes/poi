@@ -4,28 +4,53 @@ import math
 import rospy
 import signal
 import sys
-from geometry_msgs.msg import Pose, PoseArray
+from geometry_msgs.msg import PoseStamped, PoseArray
+from authoring_msgs.msg import POI, POIArray
 import tf
+import copy
 
 REFERENCE_FRAME='tag_2'
 
 class Poi(object):
     def __init__(self):
-        self._poses_pub = rospy.Publisher("/poi",PoseArray,queue_size=1,latch=True)
-        self.publish_poses()
-
+        self._pois_pub = rospy.Publisher("/pois",POIArray,queue_size=1,latch=True)
+        self._poses_pub = rospy.Publisher("/pois_pose",PoseArray,queue_size=1,latch=True)
+        self.publish_pois()
         
-    def publish_poses(self):
-        array = PoseArray()
-        array.header.frame_id = REFERENCE_FRAME
+    def publish_pois(self):
+        array = POIArray()
+        
+        #POI1
+        poi = POI()
+        poi.pose.pose.position.x=.160
+        poi.pose.pose.position.y=.061
+        poi.pose.pose.position.z=-.125
+        poi.pose.pose.orientation.x=-1
+        poi.pose.header.frame_id = REFERENCE_FRAME
+        poi.type = poi.SCREW
+        poi.id = 0
+        array.poi_array.append(poi)
+        poi1 = copy.deepcopy(poi)
+        poi1.pose.pose.position.x+=.107
+        poi1.id=1
+        array.poi_array.append(poi1)
+        poi3 = copy.deepcopy(poi1)
+        poi3.type = poi.HOLE
+        poi3.pose.pose.position.y+=.125
+        array.poi_array.append(poi3)
+        poi4=copy.deepcopy(poi3)
+        poi4.pose.pose.position.x-=.107
+        array.poi_array.append(poi4)
 
-        pose = Pose()
-        pose.position.x=.160
-        pose.position.y=.061
-        pose.position.z=-.125
-        pose.orientation.w=1
-        array.poses.append(pose)
-        self._poses_pub.publish(array)
+
+        self._pois_pub.publish(array)
+
+        pose_array = PoseArray()
+        pose_array.header.frame_id = REFERENCE_FRAME
+        for poi in array.poi_array:
+            pose_array.poses.append(poi.pose.pose)
+        self._poses_pub.publish(pose_array)
+
 
     def run(self):
         rospy.spin()

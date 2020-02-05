@@ -13,10 +13,12 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray
-from authoring_msgs.msg import Action, Command
+from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion
+from std_msgs.msg import ColorRGBA
+from authoring_msgs.msg import Action, Command, POI, POIArray
 import tf
 import copy
+from tf.transformations import quaternion_from_euler
 
 REFERENCE_FRAME='panda_link0'
 
@@ -25,25 +27,24 @@ class Parser(object):
         self._tl = tf.TransformListener()
         rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
         self._pose_pub = rospy.Publisher("/grasping_point",PoseStamped,queue_size=1)
-        self._command_pub = rospy.Publisher("/planner/command", Command,queue_size=1)
-        self._marker_pub = rospy.Publisher("/gui/markers",Marker,queue_size=1)
+        self._command_pub = rospy.Publisher("/parser/command", Command, queue_size=1)
+        self._marker_pub = rospy.Publisher("/gui/markers", Marker, queue_size=1)
         self._model = image_geometry.PinholeCameraModel()
         self._model.fromCameraInfo(rospy.wait_for_message("rgb/camera_info", CameraInfo))
         self._feedback_pub = rospy.Publisher("/gui/feedback",String,queue_size=1)
 
         self._br = tf.TransformBroadcaster()
-        self._poi = []
-        self._poi_sub = rospy.Subscriber("/poi", PoseArray, self.on_poi, queue_size = 1)
+        rospy.sleep(.5)
+        self._pois = []
+        self._poi_sub = rospy.Subscriber("/pois", POIArray, self.on_poi, queue_size = 1)
         self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
 
     def on_poi(self, msg):
-        for p in msg.poses:
-            pose = PoseStamped()
-            pose.header = msg.header
-            pose.pose = p
-            pose = self._tl.transformPose(REFERENCE_FRAME, pose)
-            self._poi.append(pose)
-        print "got "+str(len(self._poi))+" pois"
+        for p in msg.poi_array:
+            p.pose = self._tl.transformPose(REFERENCE_FRAME, p.pose)
+            self._pois.append(p)
+            if p.type == p.SCREW:
+                self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.95)
 
     def get_xyz_from_pixel(self,x,y,d):
         p = [x,y]
@@ -69,22 +70,52 @@ class Parser(object):
         pose.header.stamp=rospy.Time.now()
         self._pose_pub.publish(pose)
 
+    def publish_mesh(self, pose, name, i, color, alpha):
+        marker = Marker()
+        marker.header.frame_id = REFERENCE_FRAME
+        marker.pose = pose
+        marker.pose.position.z-=.02
+        marker.ns = name
+        marker.id = i
+        scale = .3
+        marker.scale.x=scale
+        marker.scale.y=scale
+        marker.scale.z=scale
+        marker.color = self.get_color(color, alpha)
+        marker.type = marker.MESH_RESOURCE
+        marker.mesh_resource = "package://authoring/meshes/"+name+".stl"
+        print marker
+        self._marker_pub.publish(marker)
+
+
+    def get_orientation_from_quaternion(self, q):
+        rot = Quaternion()
+        rot.x=q[0]
+        rot.y=q[1]
+        rot.z=q[2]
+        rot.w=q[3]
+        return rot
+
+    #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
+    def get_color(self, string, alpha):
+        color = ColorRGBA()
+        string=string.lstrip('#')
+        (r,g,b) = tuple(int(string[i:i+2], 16)/255. for i in (0, 2, 4))
+        color.r = r
+        color.g = g
+        color.b = b
+        color.a=alpha
+        return color
+ 
+
     def publish_spiral(self,point,name,i,scale,color,alpha=1):
         marker = Marker()
         marker.header.frame_id = REFERENCE_FRAME
-        #Get everything in the panda pose
- 
         marker.pose.position = point
         marker.ns = name
         marker.id = i
         marker.scale.x=scale/20.
-        #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
-        color=color.lstrip('#')
-        (r,g,b) = tuple(int(color[i:i+2], 16)/255. for i in (0, 2, 4))
-        marker.color.r = r
-        marker.color.g = g
-        marker.color.b = b
-        marker.color.a=alpha
+        marker.color = self.get_color(color, alpha)
         marker.type = marker.LINE_STRIP
         for i in range(100):
             angle = i*np.pi/25.
@@ -97,6 +128,83 @@ class Parser(object):
         marker.pose.orientation.w=1
         self._marker_pub.publish(marker)
 
+    def get_points_cross(self, width, height):
+        p1=Point()
+        p1.x=-width/2
+        p1.y=-height/2
+        p1.z=0
+        p2 = copy.deepcopy(p1)
+        p2.x=width/2
+        p2.y=width/2
+        p3 = copy.deepcopy(p2)
+        p3.y=-height/2
+        p4 = copy.deepcopy(p3)
+        p4.x=-width/2
+        p4.y=height/2
+        return [p1,p2,p3,p4]
+
+    def get_points_rect(self, width, height):
+        p1=Point()
+        p1.x=-width/2
+        p1.y=-height/2
+        p1.z=0
+        p2 = copy.deepcopy(p1)
+        p2.x=width/2
+        p3 = copy.deepcopy(p2)
+        p3.y=height/2
+        p4 = copy.deepcopy(p3)
+        p4.x=-width/2
+        p5 = copy.deepcopy(p1)
+        return [p1,p2,p3,p4,p5]
+
+    def publish_cross(self, point, name, i, width, height, rotation, color, alpha):
+        marker = Marker()
+        marker.header.frame_id = REFERENCE_FRAME
+        marker.pose.position = point
+        q = quaternion_from_euler(0,0,-rotation+np.pi/4)
+        marker.pose.orientation = self.get_orientation_from_quaternion(q)
+        marker.ns = name
+        marker.id = i
+        marker.scale.x = .02
+        marker.scale.y = .02
+        marker.scale.z = .02
+        marker.color = self.get_color(color, alpha)
+        marker.type = marker.LINE_LIST
+        marker.points = self.get_points_cross(width,height)
+        self._marker_pub.publish(marker)
+
+    def publish_rectangle(self, point, name, i, width, height, rotation, color, alpha):
+        marker = Marker()
+        marker.header.frame_id = REFERENCE_FRAME
+        marker.pose.position = point
+        q = quaternion_from_euler(0,0,-rotation+np.pi/4)
+        marker.pose.orientation = self.get_orientation_from_quaternion(q)
+        marker.ns = name
+        marker.id = i
+        marker.scale.x = .05
+        marker.scale.y = .05
+        marker.scale.z = .05
+        marker.color = self.get_color(color, alpha)
+        marker.type = marker.LINE_STRIP
+        marker.points = self.get_points_rect(width,height)
+        self._marker_pub.publish(marker)
+
+
+    def publish_surface(self, point, name, i, width, height, rotation, color, alpha):
+        marker = Marker()
+        marker.header.frame_id = REFERENCE_FRAME
+        marker.pose.position = point
+        q = quaternion_from_euler(0,0,-rotation+np.pi/4)
+        marker.pose.orientation = self.get_orientation_from_quaternion(q)
+        marker.ns = name
+        marker.id = i
+        marker.scale.x = width
+        marker.scale.y = height
+        marker.scale.z = .10
+        marker.color = self.get_color(color, alpha)
+        marker.type = marker.CUBE
+        self._marker_pub.publish(marker)
+
     def publish_sphere(self,point,name,i,scale,color,alpha=1):
         marker = Marker()
         marker.header.frame_id = REFERENCE_FRAME
@@ -106,13 +214,7 @@ class Parser(object):
         marker.scale.x=scale
         marker.scale.y=scale
         marker.scale.z=scale
-        #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
-        color=color.lstrip('#')
-        (r,g,b) = tuple(int(color[i:i+2], 16)/255. for i in (0, 2, 4))
-        marker.color.r = r
-        marker.color.g = g
-        marker.color.b = b
-        marker.color.a=alpha
+        marker.color = self.get_color(color, alpha)
         marker.type = marker.SPHERE
         marker.pose.orientation.w=1
         self._marker_pub.publish(marker)
@@ -125,12 +227,7 @@ class Parser(object):
         marker.scale.x=scale/2
         marker.scale.y=scale
         marker.scale.z=scale
-        #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
-        color=color.lstrip('#')
-        (r,g,b) = tuple(int(color[i:i+2], 16)/255. for i in (0, 2, 4))
-        marker.color.r = r
-        marker.color.g = g
-        marker.color.b = b
+        marker.color = self.get_color(color, alpha)
         marker.points = points
         marker.color.a=alpha
         marker.type = marker.ARROW
@@ -166,6 +263,8 @@ class Parser(object):
             x = int(cmd[2])
             y = int(cmd[3])
             width = int(cmd[4])
+            height = int(cmd[5])
+            rotation = int(cmd[6])*2*np.pi/360.
             color = cmd[7]
             if name == 'arrow':
                 angle = int(cmd[6])*2*np.pi/360.+np.pi
@@ -190,6 +289,18 @@ class Parser(object):
             point = self.snap_to_poi(point,scale)
 
             action = Action()
+            if name == 'surface':
+                self.publish_surface(point, name, index, scale, scale/width*height, rotation, color, alpha=.5)
+                action.type = action.COVER
+
+            if name == 'cross':
+                self.publish_cross(point, name, index, scale, scale/width*height, rotation, color, alpha=.7)
+                continue
+
+            if name == 'rect':
+                self.publish_rectangle(point, name, index, scale, scale/width*height, rotation, color, alpha=.5)
+                continue
+
             if name == 'spiral':
                 self.publish_spiral(point,name,index,scale=scale,color=color,alpha=.5)
                 action.type = action.SCREW
@@ -209,8 +320,9 @@ class Parser(object):
             action.pose.pose.orientation.w = 1
             actions.append(action)
 
-        if command_type == "exec":
+        if command_type == "exec" or command_type == "sim":
             cmd = Command()
+            cmd.sim = (True if command_type == "sim" else False)
             for action in actions:
                 cmd.core_action.append(action)
             self._command_pub.publish(cmd)
@@ -222,13 +334,13 @@ class Parser(object):
         pose.header.frame_id = "rgb_camera_link"
         pose = self._tl.transformPose(REFERENCE_FRAME, pose)
         point = pose.pose.position
-        d_min=scale
+        d_min=scale/2
         to_return = point
-        for p in self._poi:
-            d = self.distance(p.pose.position,point)
-            if d < scale/2:
-                d_min = scale
-                to_return = p.pose.position
+        for p in self._pois:
+            d = self.distance(p.pose.pose.position,point)
+            if d < d_min:
+                d_min = d
+                to_return = p.pose.pose.position
                 print "snapping"
         return to_return
 

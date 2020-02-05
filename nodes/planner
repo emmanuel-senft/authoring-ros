@@ -8,7 +8,7 @@ import PyKDL
 import copy
 import numpy as np
 
-from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion
+from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion,Vector3
 from nav_msgs.msg import Path
 from std_msgs.msg import String
 from authoring_msgs.msg import Action,Command
@@ -20,17 +20,22 @@ ACTION_PLACE=1
 class Planner(object):
     def __init__(self):
         self._tl = tf.TransformListener()
+        self._br = tf.TransformBroadcaster()
         rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
-        self._path_pub = rospy.Publisher("/panda/path", Path, queue_size=0)
-        self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist, queue_size=5)
-        self._command_sub = rospy.Subscriber("/planner/command", Command,self.on_command)
-        self._string_pub = rospy.Publisher("/panda/commands",String, queue_size=1)
+        self._path_pub = rospy.Publisher("/planner/path", Path, queue_size=0)
+        self._vel_pub = rospy.Publisher("/planner/cart_vel", Twist, queue_size=5)
+        self._command_sub = rospy.Subscriber("/parser/command", Command, self.on_command)
+        self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
+        self._command_pub = rospy.Publisher("/planner/command", String, queue_size=1)
         self._plan = []
         self._running = False
         self._vel_pub.publish(Twist())
+        self._simulation = False
+        self._integrator = Twist()
+        self._freq = 50.
 
     def add_subaction(self, action):
-        rot = tf.transformations.quaternion_from_euler(math.pi,0,0)
+        rot = tf.transformations.quaternion_from_euler(0,0,0)
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
         if action.type == action.PICK:
             print "pick"
@@ -70,10 +75,11 @@ class Planner(object):
         
         if action.type == action.SCREW:
             print "screw"
-            angle = 3*np.pi/5.
-            rot = tf.transformations.quaternion_from_euler(math.pi,0,-angle)
+            #angle = 3*np.pi/5.
+            angle = 1.2*np.pi/2.
+            rot = tf.transformations.quaternion_from_euler(0,0,-angle)
             q_plus = Quaternion(rot[0],rot[1],rot[2],rot[3])
-            rot = tf.transformations.quaternion_from_euler(math.pi,0,angle)
+            rot = tf.transformations.quaternion_from_euler(0,0,angle)
             q_minus = Quaternion(rot[0],rot[1],rot[2],rot[3])
  
             move_above = Action()
@@ -115,6 +121,7 @@ class Planner(object):
     def on_command(self,msg):
         print "new command"
         current_action_id = 0
+        self._simulation = msg.sim
         while len(msg.core_action)>0:
             print len(msg.core_action)
             current_action = []
@@ -127,12 +134,16 @@ class Planner(object):
                 self.add_subaction(sub_action)
             current_action_id += 1
 
-        print "start plan"
+        if self._simulation:
+            self._event_pub.publish(String("start_sim"))
+            rospy.sleep(.05)
+        else:
+            self._event_pub.publish(String("start_exec"))
         self._running = True
         self.update_plan()
 
     def run(self):
-        r = rospy.Rate(100)
+        r = rospy.Rate(self._freq)
         while not rospy.is_shutdown():
             self.update_plan()
             r.sleep()
@@ -143,10 +154,13 @@ class Planner(object):
         print len(self._plan)
 
     def update_plan(self):
+        print "in plan"
         if not self._running:
             return
         if len(self._plan) == 0:
             print "Finished"
+            self._event_pub.publish(String("motion_finished"))
+
             self._running = False
             return
 
@@ -164,13 +178,20 @@ class Planner(object):
     def bound(self, val, b):
         return min(max(val,-b),b)
 
-    def go_to_position(self, goal):
+    def vectorise(self, val):
         try:
-            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, 'end_effector', rospy.Time(0))
+            return [val.x, val.y, val.z, val.w]
+        except:
+            return [val.x, val.y, val.z]
+
+    def go_to_position(self, goal):
+        self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "current_goal",REFERENCE_FRAME)
+        try:
+            ee_frame = ('sim_' if self._simulation else '') + 'end_effector'
+            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         except:
             print("fail")
             return
-
         pose = Pose()
         pose.position.x = goal.pose.position.x-trans[0]
         pose.position.y = goal.pose.position.y-trans[1]
@@ -193,20 +214,49 @@ class Planner(object):
         if d < -np.pi:
             angle[2] += 2 * np.pi 
 
-        threshold = .001
-        if math.fabs(pose.position.x) < threshold and math.fabs(pose.position.y) < threshold and math.fabs(pose.position.z) <threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
+        threshold = .005
+        dx = math.fabs(pose.position.x)
+        dy = math.fabs(pose.position.y)
+        dz = math.fabs(pose.position.z)
+
+        if dx < threshold and dy < threshold and dz <threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
             print "arrived sub point"
             return True
         else:
             twist = Twist()
             max_vel = .15
-            P=8
-            twist.linear.x=self.bound(P*pose.position.x,max_vel)
-            twist.linear.y=self.bound(P*pose.position.y,max_vel)
-            twist.linear.z=self.bound(P*pose.position.z,max_vel)
-            twist.angular.x=self.bound(P*angle[0],6*max_vel)
-            twist.angular.y=self.bound(P*angle[1],6*max_vel)
-            twist.angular.z=self.bound(P*angle[2],6*max_vel)
+            P_lin=15
+            P_rot=10
+            I=0.000
+            if dx < 5 * threshold and dx > threshold/2 and pose.position.x*self._integrator.linear.x >= 0:
+                print "filling x"
+                self._integrator.linear.x += pose.position.x
+            else:
+                self._integrator.linear.x = 0
+            print "new"
+            print dx
+            if dy < 5 * threshold and dy > threshold/2 and pose.position.y*self._integrator.linear.y >= 0:
+                print "filling y"
+                self._integrator.linear.y += pose.position.y
+            else:
+                self._integrator.linear.y = 0
+            print dy
+            if dz < 5 * threshold and dz > threshold/2 and pose.position.z*self._integrator.linear.z >= 0:
+                print "filling z"
+                self._integrator.linear.z += pose.position.z
+            else:
+                self._integrator.linear.z = 0
+            print dz
+
+            twist.linear.x=self.bound(P_lin*pose.position.x+I*self._integrator.linear.x,max_vel)
+            twist.linear.y=self.bound(P_lin*pose.position.y+I*self._integrator.linear.y,max_vel)
+            twist.linear.z=self.bound(P_lin*pose.position.z+I*self._integrator.linear.z,max_vel)
+
+            print self._integrator.linear.z
+
+            twist.angular.x=self.bound(P_rot*angle[0],10*max_vel)
+            twist.angular.y=self.bound(P_rot*angle[1],10*max_vel)
+            twist.angular.z=self.bound(P_rot*angle[2],10*max_vel)
             self._vel_pub.publish(twist)
         return False
 
@@ -215,22 +265,23 @@ class Planner(object):
 
     def grasp(self):
         cmd = String()
-        cmd.data = "toggleGrip"
-        self._string_pub.publish(cmd)
+        cmd.data = "grasp"
+        self._command_pub.publish(cmd)
         rospy.sleep(2)
         return True
 
     def release(self):
         cmd = String()
-        cmd.data = "toggleGrip"
-        self._string_pub.publish(cmd)
+        cmd.data = "release"
+        self._command_pub.publish(cmd)
         rospy.sleep(1)
         return True
 
     def display_path(self):
         path = Path()
         path.header.frame_id = REFERENCE_FRAME
-        (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, 'end_effector', rospy.Time(0))
+        ee_frame = ('sim_' if self._simulation else '') + 'end_effector'
+        (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         EE_pose = PoseStamped()
         EE_pose.pose.position.x = trans[0]
         EE_pose.pose.position.y = trans[1]

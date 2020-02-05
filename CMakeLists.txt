@@ -62,15 +62,21 @@ install(DIRECTORY
     launch/
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
-
-install(FILES
-    config/transforms.yaml
+install(DIRECTORY
+    config/
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 )
-
-install(FILES
-    rviz/joint_viewer.rviz
+install(DIRECTORY
+    rviz/
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/rviz
+)
+install(DIRECTORY
+    meshes/
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/meshes
+)
+install(DIRECTORY
+    urdfs/
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/urdfs
 )
 
 catkin_install_python(PROGRAMS
@@ -80,6 +86,7 @@ catkin_install_python(PROGRAMS
     nodes/planner
     nodes/mover
     nodes/poi
+    nodes/simulator
     nodes/static_publisher
     nodes/tf_printer
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})

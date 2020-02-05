@@ -3,7 +3,7 @@
     <arg name="file_name" default="transforms.yaml"/>
     <arg name="transform" default="camera_transform"/>
     <arg name="image_topic" default="/rgb/image_raw"/> 
-    <arg name="default_marker_size" default="106.5"/>
+    <arg name="default_marker_size" default="106"/>
    
     <include file="$(find authoring)/launch/kinect.launch">
     </include>
@@ -12,7 +12,7 @@
         <arg name="image_topic"            value="$(arg image_topic)" />
         <arg name="default_marker_size"            value="$(arg default_marker_size)" />
     </include>  
-    <node pkg="tf" type="static_transform_publisher" name="camera_boadcast" args="0.05025 -.098 0 .707106781 0.707106781 0 0 tag_4 panda_link0 100" />
+        <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0.0504 -.085 -0.005 .707106781 0.707106781 0 0 tag_4 panda_link0 100" /> 
     <node pkg="authoring" type="tf_printer" name="camera_printer" output="screen">
         <param name="file_name" type="string" value="$(arg file_name)" />
         <param name="transform" type="string" value="$(arg transform)" />

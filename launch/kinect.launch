@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="rgb_point_cloud" default="false"/>
-    <include file="$(find azure_kinect_ros_driver)/launch/driver.launch" >
+    <include file="$(find authoring)/launch/driver.launch" >
         <arg name="fps" default="30"/>
         <arg name="depth_mode" default="NFOV_UNBINNED"/>
         <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
