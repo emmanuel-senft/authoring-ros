@@ -320,12 +320,16 @@ class Parser(object):
             action.pose.pose.orientation.w = 1
             actions.append(action)
 
-        if command_type == "exec" or command_type == "sim":
-            cmd = Command()
-            cmd.sim = (True if command_type == "sim" else False)
-            for action in actions:
-                cmd.core_action.append(action)
-            self._command_pub.publish(cmd)
+        cmd = Command()
+        if command_type == "exec":
+            cmd.type = cmd.EXEC
+        if command_type == "sim":
+            cmd.type = cmd.SIM
+        if command_type == "viz":
+            cmd.type = cmd.VIZ
+        for action in actions:
+            cmd.core_action.append(action)
+        self._command_pub.publish(cmd)
 
     def snap_to_poi(self,point,scale):
         pose = PoseStamped()

@@ -17,6 +17,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies
 find_package(OpenCV REQUIRED)
 
+find_package(Eigen3 REQUIRED)
+
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 if(2.9.0 VERSION_GREATER ${OpenCV_VERSION})
     message(FATAL "OpenCV3 required!")
@@ -45,7 +47,10 @@ catkin_package(
 ## Build ##
 ###########
 
-include_directories(include ${catkin_INCLUDE_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
+
+message(STATUS test)
+message(STATUS ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_definitions(-std=c++11)
 
@@ -54,6 +59,11 @@ set(LIBS
     ${OpenCV_LIBRARIES}
     )
 
+add_executable(pandaJacob src/jacob.cpp)
+target_include_directories(pandaJacob PUBLIC ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR} /home/senft/catkin_ws/devel/include )
+target_link_libraries(pandaJacob
+   ${catkin_LIBRARIES}
+)
 #############
 ## Install ##
 #############
@@ -89,6 +99,10 @@ catkin_install_python(PROGRAMS
     nodes/simulator
     nodes/static_publisher
     nodes/tf_printer
+    nodes/r_ik_wrapper
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
+install(TARGETS pandaJacob
+  RUNTIME DESTINATION lib/authoring
+)
 

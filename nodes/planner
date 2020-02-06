@@ -21,7 +21,7 @@ class Planner(object):
     def __init__(self):
         self._tl = tf.TransformListener()
         self._br = tf.TransformBroadcaster()
-        rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
+        rospy.sleep(2.5) # sleep a bit to make sure the TF cache is filled
         self._path_pub = rospy.Publisher("/planner/path", Path, queue_size=0)
         self._vel_pub = rospy.Publisher("/planner/cart_vel", Twist, queue_size=5)
         self._command_sub = rospy.Subscriber("/parser/command", Command, self.on_command)
@@ -30,9 +30,9 @@ class Planner(object):
         self._plan = []
         self._running = False
         self._vel_pub.publish(Twist())
-        self._simulation = False
+        self._sim = False
         self._integrator = Twist()
-        self._freq = 50.
+        self._freq = 100.
 
     def add_subaction(self, action):
         rot = tf.transformations.quaternion_from_euler(0,0,0)
@@ -40,14 +40,14 @@ class Planner(object):
         if action.type == action.PICK:
             print "pick"
             move_above = Action()
-            move_above.type = "motion"
+            move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z-=.005
             grasp = Action()
-            grasp.type="grasp"
+            grasp.type = grasp.GRASP
             self._plan.append(move_above)
             self._plan.append(move_to)
             self._plan.append(grasp)
@@ -56,7 +56,7 @@ class Planner(object):
         if action.type == action.PLACE:
             print "place"
             move_above = Action()
-            move_above.type = "motion"
+            move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
             move_above.pose.pose.orientation = q
@@ -67,7 +67,7 @@ class Planner(object):
             move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z+=.05
             release = Action()
-            release.type="release"
+            release.type = release.RELEASE
             self._plan.append(move_above)
             self._plan.append(move_to)
             self._plan.append(release)
@@ -83,7 +83,7 @@ class Planner(object):
             q_minus = Quaternion(rot[0],rot[1],rot[2],rot[3])
  
             move_above = Action()
-            move_above.type = "motion"
+            move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
@@ -105,8 +105,6 @@ class Planner(object):
             minus_low2 = copy.deepcopy(minus_low)
             minus_low2.pose.pose.position.z-=.003
 
-            release = Action()
-            release.type="release"
             self._plan.append(move_above)
             self._plan.append(minus_high)
             self._plan.append(minus_low)
@@ -120,8 +118,9 @@ class Planner(object):
         
     def on_command(self,msg):
         print "new command"
+        self._plan = []
         current_action_id = 0
-        self._simulation = msg.sim
+        self._type = msg.type
         while len(msg.core_action)>0:
             print len(msg.core_action)
             current_action = []
@@ -134,12 +133,15 @@ class Planner(object):
                 self.add_subaction(sub_action)
             current_action_id += 1
 
-        if self._simulation:
+        if msg.type == msg.SIM:
+            self._sim = True
             self._event_pub.publish(String("start_sim"))
+            self._running = True
             rospy.sleep(.05)
-        else:
+        if msg.type == msg.EXEC:
+            self._sim = False
             self._event_pub.publish(String("start_exec"))
-        self._running = True
+            self._running = True
         self.update_plan()
 
     def run(self):
@@ -153,8 +155,10 @@ class Planner(object):
         self._vel_pub.publish(Twist())
         print len(self._plan)
 
+
     def update_plan(self):
         print "in plan"
+        self.display_path()
         if not self._running:
             return
         if len(self._plan) == 0:
@@ -165,13 +169,13 @@ class Planner(object):
             return
 
         current_action = self._plan[0]
-        if current_action.type == 'motion':
+        if current_action.type == current_action.MOVE:
             if self.go_to_position(current_action.pose):
                 self.next_sub_action()
-        if current_action.type == 'grasp':
+        if current_action.type == current_action.GRASP:
             if self.grasp():
                 self.next_sub_action()
-        if current_action.type == 'release':
+        if current_action.type == current_action.RELEASE:
             if self.release():
                 self.next_sub_action()
 
@@ -187,7 +191,8 @@ class Planner(object):
     def go_to_position(self, goal):
         self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "current_goal",REFERENCE_FRAME)
         try:
-            ee_frame = ('sim_' if self._simulation else '') + 'end_effector'
+            ee_frame = ('sim_' if self._sim else '') + 'end_effector'
+            print ee_frame
             (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         except:
             print("fail")
@@ -225,8 +230,8 @@ class Planner(object):
         else:
             twist = Twist()
             max_vel = .15
-            P_lin=15
-            P_rot=10
+            P_lin=4
+            P_rot=.5
             I=0.000
             if dx < 5 * threshold and dx > threshold/2 and pose.position.x*self._integrator.linear.x >= 0:
                 print "filling x"
@@ -254,9 +259,9 @@ class Planner(object):
 
             print self._integrator.linear.z
 
-            twist.angular.x=self.bound(P_rot*angle[0],10*max_vel)
-            twist.angular.y=self.bound(P_rot*angle[1],10*max_vel)
-            twist.angular.z=self.bound(P_rot*angle[2],10*max_vel)
+            twist.angular.x=self.bound(P_rot*angle[0],6*max_vel)
+            twist.angular.y=self.bound(P_rot*angle[1],6*max_vel)
+            twist.angular.z=self.bound(P_rot*angle[2],6*max_vel)
             self._vel_pub.publish(twist)
         return False
 
@@ -264,6 +269,8 @@ class Planner(object):
         return [(a+np.pi)%(2*np.pi)-np.pi for a in angle]
 
     def grasp(self):
+        v = Twist()
+        self._vel_pub.publish(v)
         cmd = String()
         cmd.data = "grasp"
         self._command_pub.publish(cmd)
@@ -271,6 +278,8 @@ class Planner(object):
         return True
 
     def release(self):
+        v = Twist()
+        self._vel_pub.publish(v)
         cmd = String()
         cmd.data = "release"
         self._command_pub.publish(cmd)
@@ -280,7 +289,7 @@ class Planner(object):
     def display_path(self):
         path = Path()
         path.header.frame_id = REFERENCE_FRAME
-        ee_frame = ('sim_' if self._simulation else '') + 'end_effector'
+        ee_frame = 'sim_end_effector'
         (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         EE_pose = PoseStamped()
         EE_pose.pose.position.x = trans[0]
@@ -292,8 +301,11 @@ class Planner(object):
         EE_pose.pose.orientation.w = rot[3]
         EE_pose.header.frame_id = REFERENCE_FRAME
         path.poses = [EE_pose]
-        for i in self._goals:
-            path.poses.append(i)
+        print len(self._plan)
+        for action in self._plan:
+            print action.type
+            if action.type == action.MOVE:
+                path.poses.append(action.pose)
         self._path_pub.publish(path)
 
  

@@ -20,29 +20,28 @@ class Mover(object):
     def __init__(self):
         self._tl = tf.TransformListener()
         self._br = tf.TransformBroadcaster()
+
+        #self._goal_pub = rospy.Publisher("/relaxed_ik/ee_pose_goals", EEPoseGoals, queue_size=1)
+        self._sim_vel_pub = rospy.Publisher("/mover/cart_vel",Twist,queue_size=5)
+        self._panda_vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=5)
+
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
         self._twist_sub = rospy.Subscriber("/planner/cart_vel",Twist, self.on_velocity)
         self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command)
-        self._command_pub = rospy.Publisher("/panda/command", String, queue_size=1)
+        self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=1)
         self._event_sub = rospy.Subscriber("/event",String, self.on_event)
-        self._goal_pub = rospy.Publisher("/relaxed_ik/ee_pose_goals", EEPoseGoals, queue_size=1)
-        self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointAngles, self.on_solution, queue_size=1)
-        self._joint_commands_pub = rospy.Publisher("/panda/joint_angle", JointAngles, queue_size = 5)
+
+        #self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointAngles, self.on_solution, queue_size=1)
+        #self._joint_commands_pub = rospy.Publisher("/panda/joint_angle", JointAngles, queue_size = 5)
+
         #self._gui_sub = rospy.Subscriber("/gui/command", String, self.on_command)
         self._sim = True
         self._exec = False
         self._target_vel = None
-        self._freq = 50.
+        self._freq = 100.
 
     def run(self):
-        r = rospy.Rate(self._freq)
-        while not rospy.is_shutdown():
-            self.move()
-            r.sleep()
-
-    def on_command(self, msg):
-        if self._exec:
-            self._command_pub.publish(msg)
+        rospy.spin()
 
     def on_event(self, msg):
         cmd = msg.data.split(";")[0] 
@@ -57,11 +56,14 @@ class Mover(object):
             self._exec = True
  
     def on_velocity(self, msg):
-        self._target_vel = msg
+        if self._exec:
+            self._panda_vel_pub.publish(msg)
+        if self._sim:
+            self._sim_vel_pub.publish(msg)
     
-    def on_solution(self, msg):
-        if not self._sim and self._exec:
-            self._joint_commands_pub.publish(msg)
+#    def on_solution(self, msg):
+#        if not self._sim and self._exec:
+#            self._joint_commands_pub.publish(msg)
 
     def on_command(self, msg):
         commands = msg.data.split(";")
@@ -70,7 +72,9 @@ class Mover(object):
             self._exec = True
         if commands[0] == "sim":
             self._sim = True
-            self._sim = False
+            self._exec = False
+        if self._exec:
+            self._command_pub.publish(msg)
         
     def signal_handler(self, signal, frame):
         sys.exit(0)

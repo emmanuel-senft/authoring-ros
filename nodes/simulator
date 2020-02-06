@@ -29,10 +29,14 @@ class Simulator(object):
         self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
         self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command, queue_size = 1)
 
+        self._vel_sub = rospy.Subscriber("/jacob/joint_vel", JointAngles, self.on_vel);
         #Simulator State
-        self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointAngles, self.on_solution, queue_size=1)
+        #self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointAngles, self.on_solution, queue_size=1)
         self._sim = True
         self._finger_val = .035
+        self._current_joint = [0.0,-0.4,0.0,-2.0,0.0,1.6,0.8,self._finger_val,self._finger_val]
+        self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
+        self._freq = 200
 
         #Publish init state for the robot
         self.init_states()
@@ -41,12 +45,31 @@ class Simulator(object):
         joint = JointState()
         joint.header.stamp = rospy.Time.now()
         joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
-        joint.position = [0.0,-0.4,0.0,-2.0,0.0,1.6,0.8,self._finger_val,self._finger_val]
+        joint.position = self._current_joint
         self._viz_pub.publish(joint)
 
-    def run(self):
-        rospy.spin()
+    def on_vel(self,msg):
+        for i,v in enumerate(msg.angles.data):
+            self._current_velocity[i]=v
 
+    def run(self):
+        r = rospy.Rate(self._freq)
+        while not rospy.is_shutdown():
+            self.move()
+            r.sleep()
+
+    def move(self):
+        if self._sim:
+            for i,v in enumerate(self._current_velocity):
+                self._current_joint[i]+=v/self._freq
+
+            joint = JointState()
+            joint.header.stamp = rospy.Time.now()
+            joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
+            joint.position = list(self._current_joint)
+            self._viz_pub.publish(joint)
+
+ 
     def on_event(self, msg):
         cmd = msg.data.split(";")[0]
         if cmd == "motion_finished":
@@ -65,20 +88,13 @@ class Simulator(object):
                 print self._finger_val
             if msg.data == "release":
                 self._finger_val = .035
-    def on_solution(self, msg):
-        if self._sim:
-            joint = JointState()
-            joint.header.stamp = rospy.Time.now()
-            joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
-            joint.position = list(msg.angles.data)
-            joint.position.append(self._finger_val)
-            joint.position.append(self._finger_val)
-            self._viz_pub.publish(joint)
 
     def on_state(self, msg):
         if not self._sim:
             self._viz_pub.publish(msg)
             self._finger_val = msg.position[7]
+            for i,v in enumerate(msg.position):
+                self._current_joint[i]=v
         
     def signal_handler(self, signal, frame):
         sys.exit(0)
