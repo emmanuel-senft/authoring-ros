@@ -22,7 +22,7 @@ class Ik_Wrapper(object):
         self._br = tf.TransformBroadcaster()
 
         self._goal_pub = rospy.Publisher("/relaxed_ik/ee_pose_goals", EEPoseGoals, queue_size=1)
-        self._vel_pub = rospy.Publisher("/jacob/joint_vel",JointAngles,queue_size=5)
+        self._vel_pub = rospy.Publisher("/r_ik_wrapper/joint_vel",JointAngles,queue_size=5)
 
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
         self._twist_sub = rospy.Subscriber("/planner/cart_vel",Twist, self.on_velocity)

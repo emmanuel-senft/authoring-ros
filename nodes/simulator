@@ -5,6 +5,7 @@ import sys
 import math
 import tf
 import PyKDL
+import copy
 
 from std_msgs.msg import String
 from nav_msgs.msg import Path
@@ -22,14 +23,13 @@ class Simulator(object):
 
         #Rviz value
         self._viz_pub = rospy.Publisher("/viz/joint_states", JointState, queue_size = 5)
+        self._panda_pub = rospy.Publisher("/panda/joint_angles", JointAngles, queue_size = 5)
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
         self._event_sub = rospy.Subscriber("/event",String, self.on_event)
 
-        #Panda State
-        self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
-        self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command, queue_size = 1)
 
-        self._vel_sub = rospy.Subscriber("/jacob/joint_vel", JointAngles, self.on_vel);
+        self._r_ik = rospy.get_param('~use_relaxed_ik')
+        joint_topic = ("/r_ik_wrapper" if self._r_ik else "/jacob")+"/joint_vel"
         #Simulator State
         #self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointAngles, self.on_solution, queue_size=1)
         self._sim = True
@@ -37,6 +37,11 @@ class Simulator(object):
         self._current_joint = [0.0,-0.4,0.0,-2.0,0.0,1.6,0.8,self._finger_val,self._finger_val]
         self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
         self._freq = 200
+        self._vel_sub = rospy.Subscriber(joint_topic, JointAngles, self.on_vel);
+        self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command, queue_size = 1)
+
+        #Panda State
+        self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
 
         #Publish init state for the robot
         self.init_states()
@@ -62,12 +67,18 @@ class Simulator(object):
         if self._sim:
             for i,v in enumerate(self._current_velocity):
                 self._current_joint[i]+=v/self._freq
-
             joint = JointState()
             joint.header.stamp = rospy.Time.now()
             joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
             joint.position = list(self._current_joint)
             self._viz_pub.publish(joint)
+        else:
+            desired_joint = copy.deepcopy(self._current_joint)
+            for i,v in enumerate(self._current_velocity):
+                desired_joint[i]+=80*v/self._freq
+            joint = JointAngles()
+            joint.angles.data = list(desired_joint)
+            self._panda_pub.publish(joint)
 
  
     def on_event(self, msg):

@@ -4,6 +4,7 @@
     <arg name="detect_jungle" default="false"/>
     <arg name="rgb_point_cloud" default="false"/>
     <arg name="with_utils" default="false"/>
+    <arg name="use_relaxed_ik" default="false"/>
 
     <group if="$(arg detect_camera)">
         <include file="$(find authoring)/launch/detect.launch">  
@@ -40,6 +41,7 @@
 
     <group if="$(arg with_utils)">
         <include file="$(find authoring)/launch/utils.launch">  
+            <arg name="use_relaxed_ik" default="$(arg use_relaxed_ik)"/>
         </include>
     </group>
 

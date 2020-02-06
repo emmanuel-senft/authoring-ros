@@ -51,7 +51,7 @@ if __name__ == '__main__':
     urdf_string = urdf_file.read()
     rospy.set_param('robot_description', urdf_string)
     js_pub = rospy.Publisher('joint_states',JointState,queue_size=5)
-    rospy.Subscriber('/panda/joint_states',JointState,ja_solution_cb)
+    rospy.Subscriber('/viz/joint_states',JointState,ja_solution_cb)
     tf_pub = tf.TransformBroadcaster()
 
     rospy.sleep(0.5)

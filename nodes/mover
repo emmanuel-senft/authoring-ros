@@ -22,14 +22,12 @@ class Mover(object):
         self._br = tf.TransformBroadcaster()
 
         #self._goal_pub = rospy.Publisher("/relaxed_ik/ee_pose_goals", EEPoseGoals, queue_size=1)
-        self._sim_vel_pub = rospy.Publisher("/mover/cart_vel",Twist,queue_size=5)
+        self._r_ik = rospy.get_param('~use_relaxed_ik')
+        if not self._r_ik:
+            self._sim_vel_pub = rospy.Publisher("/mover/cart_vel",Twist,queue_size=5)
         self._panda_vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=5)
 
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
-        self._twist_sub = rospy.Subscriber("/planner/cart_vel",Twist, self.on_velocity)
-        self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command)
-        self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=1)
-        self._event_sub = rospy.Subscriber("/event",String, self.on_event)
 
         #self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointAngles, self.on_solution, queue_size=1)
         #self._joint_commands_pub = rospy.Publisher("/panda/joint_angle", JointAngles, queue_size = 5)
@@ -40,6 +38,13 @@ class Mover(object):
         self._target_vel = None
         self._freq = 100.
 
+        if not self._r_ik:
+            self._twist_sub = rospy.Subscriber("/planner/cart_vel",Twist, self.on_velocity)
+        self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command)
+        self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=1)
+        self._event_sub = rospy.Subscriber("/event",String, self.on_event)
+
+ 
     def run(self):
         rospy.spin()
 
@@ -56,7 +61,7 @@ class Mover(object):
             self._exec = True
  
     def on_velocity(self, msg):
-        if self._exec:
+        if self._exec and not self._r_ik:
             self._panda_vel_pub.publish(msg)
         if self._sim:
             self._sim_vel_pub.publish(msg)
@@ -78,50 +83,6 @@ class Mover(object):
         
     def signal_handler(self, signal, frame):
         sys.exit(0)
-
-    def get_lin_magnitude(self, vel):
-        return np.sqrt(vel.linear.x**2 + vel.linear.y**2 + vel.linear.z**2)
-
-    def get_ang_magnitude(self, vel):
-        return np.sqrt(vel.angular.x**2 + vel.angular.y**2 + vel.angular.z**2)
-
-    def move(self):
-        if self._target_vel is None or (self.get_lin_magnitude(self._target_vel) < .00000001 and self.get_ang_magnitude(self._target_vel) < .00000001):
-            print "vel 0 requested"
-            return
-        ee_frame = ('sim_' if self._sim else '') + 'end_effector'
-        (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
-
-        print "current pose"
-        print trans
-        print "vel"
-        print self._target_vel.linear
-        factor = self._freq
-        trans[0] += self._target_vel.linear.x/factor
-        trans[1] += self._target_vel.linear.y/factor
-        trans[2] += self._target_vel.linear.z/factor
-        print "target"
-        print trans
-
-        angle = list(tf.transformations.euler_from_quaternion(rot))
-
-        angle[0] += self._target_vel.angular.x/factor
-        angle[1] += self._target_vel.angular.y/factor
-        angle[2] += self._target_vel.angular.z/factor
-        rot = list(tf.transformations.quaternion_from_euler(angle[0],angle[1],angle[2]))
-        goal = EEPoseGoals()
-        goal.header.frame_id = REFERENCE_FRAME
-        pose = Pose()
-        pose.position.x=trans[0]
-        pose.position.y=trans[1]
-        pose.position.z=trans[2]
-        pose.orientation.x=rot[0]
-        pose.orientation.y=rot[1]
-        pose.orientation.z=rot[2]
-        pose.orientation.w=rot[3]
-        goal.ee_poses.append(pose)
-        self._goal_pub.publish(goal)
-        self._br.sendTransform(trans, rot, rospy.Time.now(), "target",REFERENCE_FRAME)
 
 if __name__ == "__main__":
     rospy.init_node("mover")

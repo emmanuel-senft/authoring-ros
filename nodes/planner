@@ -230,8 +230,8 @@ class Planner(object):
         else:
             twist = Twist()
             max_vel = .15
-            P_lin=4
-            P_rot=.5
+            P_lin=8
+            P_rot=8
             I=0.000
             if dx < 5 * threshold and dx > threshold/2 and pose.position.x*self._integrator.linear.x >= 0:
                 print "filling x"
