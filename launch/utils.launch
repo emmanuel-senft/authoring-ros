@@ -1,7 +1,17 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="use_relaxed_ik" default="false"/>
     <node pkg="authoring" type="parser" name="parser"/>
     <node pkg="authoring" type="planner" name="planner"/>
     <node pkg="authoring" type="poi" name="poi"/>
-    <node pkg="relaxed_ik" type="relaxed_ik_rust.py" name="relaxed_ik_node" output="screen"/>
+    <node pkg="authoring" type="mover" name="mover" output="screen"/>
+    <node pkg="authoring" type="simulator" name="simulator"/>
+    <group if="$(arg use_relaxed_ik)">
+        <node pkg="relaxed_ik" type="relaxed_ik_rust.py" name="relaxed_ik_node" output="screen"/>
+        <node pkg="authoring" type="r_ik_wrapper" name="r_ik_wrapper"/>        
+    </group>
+    <group unless="$(arg use_relaxed_ik)">
+        <node pkg="authoring" type="pandaJacob" name="pandaJacob"/>
+    </group>
+
 </launch>
