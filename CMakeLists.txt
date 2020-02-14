@@ -100,6 +100,7 @@ catkin_install_python(PROGRAMS
     nodes/static_publisher
     nodes/tf_printer
     nodes/r_ik_wrapper
+    nodes/space_mouse
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS pandaJacob

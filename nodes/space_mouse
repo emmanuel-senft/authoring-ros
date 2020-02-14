@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+import rospy
+import signal
+import sys
+import math
+
+from sensor_msgs.msg import Joy
+from geometry_msgs.msg import Twist
+from std_msgs.msg import String
+
+class SpaceMouse(object):
+    def __init__(self):
+        self._joy_sub = rospy.Subscriber("/spacenav/joy",Joy,self.on_joy)
+        self._twist_pub = rospy.Publisher("/panda/cart_vel",Twist, queue_size=5)
+        self._string_pub = rospy.Publisher("/panda/commands",String, queue_size=5)
+        self._last_buttons = [0,0]
+        self._last_ax = None
+        self._delay = 0
+
+    def non_lin_scale(self, val):
+        return val*math.fabs(val)
+
+    def on_joy(self, msg):
+        twist = Twist()
+        if self._last_ax and msg.axes == (0,0,0,0,0,0) and self._delay<2:
+            ax=self._last_ax
+            self._delay += 1
+        else:
+            ax = msg.axes
+            self._last_ax = msg.axes
+            self._delay = 0
+
+        if not msg.buttons[1]:
+            twist.linear.x=self.non_lin_scale(ax[0])/2.5
+            twist.linear.y=self.non_lin_scale(ax[1])/2.5
+            twist.linear.z=self.non_lin_scale(ax[2])/2.5
+
+            twist.angular.x=0
+            twist.angular.y=0
+            twist.angular.z=self.non_lin_scale(ax[5])/1.5
+
+        else:
+            twist.linear.x=0
+            twist.linear.y=0
+            twist.linear.z=0
+
+            twist.angular.x=self.non_lin_scale(msg.axes[3])/2.5
+            twist.angular.y=self.non_lin_scale(msg.axes[4])/2.5
+            twist.angular.z=0
+        self._twist_pub.publish(twist)
+
+        if msg.buttons[0] and not self._last_buttons[0]:
+            cmd = String()
+            cmd.data = "toggleGrip"
+            #cmd.data="grasp" if not self._grasping else "release"
+            self._string_pub.publish(cmd)
+
+        self._last_buttons = msg.buttons
+
+    def run(self):
+        rospy.spin()
+
+    def signal_handler(self, signal, frame):
+        #publish zeros for the twist, exit
+        twist = Twist()
+        self._twist_pub.publish(twist)
+        sys.exit(0)
+
+if __name__ == "__main__":
+
+    rospy.init_node("space_mouse_parser")
+    sp = SpaceMouse()
+    signal.signal(signal.SIGINT, sp.signal_handler)
+    sp.run()
+

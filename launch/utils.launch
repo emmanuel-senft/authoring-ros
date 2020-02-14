@@ -16,6 +16,7 @@
     </group>
     <group unless="$(arg use_relaxed_ik)">
         <node pkg="authoring" type="pandaJacob" name="pandaJacob"/>
+        <include file="$(find authoring)/launch/space_mouse.launch"/>
     </group>
 
 </launch>

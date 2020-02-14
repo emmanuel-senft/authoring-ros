@@ -1,0 +1,7 @@
+<launch>
+    <include file="$(find spacenav_node)/launch/classic.launch" >
+    </include>
+
+    <node pkg="authoring" type="space_mouse" name="space_mouse_parser" output="screen">
+    </node>
+</launch>
