@@ -44,8 +44,8 @@ class Planner(object):
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.15
-            move_to.pose.pose.position.z-=.005
+            move_above.pose.pose.position.z+=.1
+            move_to.pose.pose.position.z
             grasp = Action()
             grasp.type = grasp.GRASP
             self._plan.append(move_above)
@@ -60,12 +60,10 @@ class Planner(object):
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
             move_above.pose.pose.orientation = q
             move_above.pose.pose.orientation = q
-            move_safe = copy.deepcopy(move_above)
-            move_safe.pose.pose.position.y = 0
-            move_safe.pose.pose.position.z = .5
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.15
-            move_to.pose.pose.position.z+=.05
+            move_to.pose.pose.position.z+=.02
+            move_safe = copy.deepcopy(move_above)
             release = Action()
             release.type = release.RELEASE
             self._plan.append(move_above)
@@ -229,7 +227,7 @@ class Planner(object):
             return True
         else:
             twist = Twist()
-            max_vel = .15
+            max_vel = .10
             P_lin=8
             P_rot=8
             I=0.000

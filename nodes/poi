@@ -9,7 +9,7 @@ from authoring_msgs.msg import POI, POIArray
 import tf
 import copy
 
-REFERENCE_FRAME='tag_2'
+REFERENCE_FRAME='panda_link0'
 
 class Poi(object):
     def __init__(self):
@@ -22,26 +22,38 @@ class Poi(object):
         
         #POI1
         poi = POI()
-        poi.pose.pose.position.x=.160
-        poi.pose.pose.position.y=.061
-        poi.pose.pose.position.z=-.125
-        poi.pose.pose.orientation.x=-1
+        poi.pose.pose.position.x=.463
+        poi.pose.pose.position.y=-.277
+        poi.pose.pose.position.z=.063
+        poi.pose.pose.orientation.w=1
         poi.pose.header.frame_id = REFERENCE_FRAME
         poi.type = poi.SCREW
         poi.id = 0
         array.poi_array.append(poi)
-        poi1 = copy.deepcopy(poi)
-        poi1.pose.pose.position.x+=.107
-        poi1.id=1
-        array.poi_array.append(poi1)
-        poi3 = copy.deepcopy(poi1)
-        poi3.type = poi.HOLE
-        poi3.pose.pose.position.y+=.125
-        array.poi_array.append(poi3)
-        poi4=copy.deepcopy(poi3)
-        poi4.pose.pose.position.x-=.107
-        array.poi_array.append(poi4)
+        for i in range(4):
+            poi = copy.deepcopy(poi)
+            poi.pose.pose.position.x+=0.0375
+            poi.id = i+1
+            array.poi_array.append(poi)
+        for i in range(5):
+            for j in range(5):
+                poi = copy.deepcopy(poi)
+                poi.pose.pose.position.x=.266+.036*i
+                poi.pose.pose.position.y=-.278+.04*j
+                poi.pose.pose.position.z=.066
+                poi.id = j+5*i
+                poi.type = poi.HOLE
+                array.poi_array.append(poi)
 
+        poi = copy.deepcopy(poi)
+        poi.type = poi.SCREW_DRIVER
+        #poi5.pose.pose.position.x = -0.045
+        #poi5.pose.pose.position.y = 0.340
+        #poi5.pose.pose.position.z = -0.169
+        poi.pose.pose.position.x = .657
+        poi.pose.pose.position.y = -0.281
+        poi.pose.pose.position.z = 0.157
+        array.poi_array.append(poi)
 
         self._pois_pub.publish(array)
 

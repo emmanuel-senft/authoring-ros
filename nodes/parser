@@ -13,7 +13,7 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion
+from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion, Twist
 from std_msgs.msg import ColorRGBA
 from authoring_msgs.msg import Action, Command, POI, POIArray
 import tf
@@ -32,6 +32,7 @@ class Parser(object):
         self._model = image_geometry.PinholeCameraModel()
         self._model.fromCameraInfo(rospy.wait_for_message("rgb/camera_info", CameraInfo))
         self._feedback_pub = rospy.Publisher("/gui/feedback",String,queue_size=1)
+        self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=1)
 
         self._br = tf.TransformBroadcaster()
         rospy.sleep(.5)
@@ -44,7 +45,7 @@ class Parser(object):
             p.pose = self._tl.transformPose(REFERENCE_FRAME, p.pose)
             self._pois.append(p)
             if p.type == p.SCREW:
-                self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.95)
+                self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.90)
 
     def get_xyz_from_pixel(self,x,y,d):
         p = [x,y]
@@ -73,11 +74,11 @@ class Parser(object):
     def publish_mesh(self, pose, name, i, color, alpha):
         marker = Marker()
         marker.header.frame_id = REFERENCE_FRAME
-        marker.pose = pose
-        marker.pose.position.z-=.02
+        marker.pose = copy.deepcopy(pose)
+        marker.pose.position.z-=.043
         marker.ns = name
         marker.id = i
-        scale = .3
+        scale = 1
         marker.scale.x=scale
         marker.scale.y=scale
         marker.scale.z=scale
@@ -237,6 +238,16 @@ class Parser(object):
     def on_command(self, message):
         list_actions = message.data.split(";")
         command_type = list_actions[0]
+        if command_type == 'mouse':
+            arg = list_actions[1].split(":")
+            print arg
+            twist = Twist()
+            twist.linear.x = int(arg[0])/3000.
+            twist.linear.y = int(arg[1])/3000.
+            twist.linear.z = int(arg[2])/3000.
+            twist.angular.z = int(arg[3])/3000.
+            self._vel_pub.publish(twist)
+            return
         if command_type == 'remove':
             cmd = list_actions[1].split(":")
 

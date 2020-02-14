@@ -19,7 +19,7 @@
             <param name="transform" type="string" value="camera_transform" />
         </node>
     </group>
-
+<!--
     <group if="$(arg detect_jungle)">
         <include file="$(find authoring)/launch/detect.launch">  
             <arg name="default_marker_size" default="79"/>
@@ -32,7 +32,7 @@
             <param name="transform" type="string" value="jungle_transform" />
         </node>
     </group>
-    
+    -->
     <include file="$(find authoring)/launch/kinect.launch">
         <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
     </include>
