@@ -21,6 +21,7 @@ import copy
 from tf.transformations import quaternion_from_euler
 
 REFERENCE_FRAME='panda_link0'
+CAMERA_FRAME='rgb_camera_link'
 
 class Parser(object):
     def __init__(self):
@@ -56,12 +57,23 @@ class Parser(object):
         point.y=d/p3d[2]*p3d[1]
         point.z=d/p3d[2]*p3d[2]
         return point
-        
+
+    def get_pixel_from_point(self, p):
+        pose = PoseStamped()
+        pose.pose.position = p
+        pose.pose.orientation.w = 1
+        pose.header.frame_id = REFERENCE_FRAME
+        p = self._tl.transformPose(CAMERA_FRAME,pose)
+        p = p.pose.position
+        p=[p.x,p.y,p.z]
+        pixel = self._model.project3dToPixel(p)
+        return str(int(pixel[0]))+","+str(int(pixel[1]))
+
     def publish_pose(self,point):
         pose = PoseStamped()
         pose.pose.position=point
         pose.pose.orientation.w=1
-        pose.header.frame_id="rgb_camera_link"
+        pose.header.frame_id=CAMERA_FRAME
         pose = self._tl.transformPose(REFERENCE_FRAME, pose)
         q = tf.transformations.quaternion_from_euler(math.pi,0,0)
         pose.pose.orientation.x=q[0]
@@ -241,6 +253,7 @@ class Parser(object):
 
         list_actions.pop(0)
         image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image))
+        snap_str = "snap;"
 
         for action in list_actions:
             cmd = action.split(":")
@@ -266,12 +279,15 @@ class Parser(object):
             #Still in camera frame
             p = self.get_xyz_from_pixel(point.x,point.y,d)
             if len(points) == 2:
-                scale = np.sqrt((points[0].x-points[1].x)**2 + (points[0].y-points[1].y)**2)*p.z/1000.
+                scale = np.sqrt((points[0].x-points[1].x)**2 + (points[0].y-points[1].y)**2)*p.z/500.
             else:
                 scale = .0001
+            if name == "arrow":
+                scale = scale/2.
 
             #And transform to reference frame
             p = self.snap_to_poi(p,scale)
+            snap_str += name+":"+str(index)+":"+self.get_pixel_from_point(p)+";"
 
             framed_points.append(p)
             for p in points[1:]:
@@ -315,6 +331,7 @@ class Parser(object):
             action.pose.pose.position = points[0]
             action.pose.pose.orientation.w = 1
             actions.append(action)
+        self._feedback_pub.publish(String(snap_str))
 
         cmd = Command()
         if command_type == "exec":
@@ -331,7 +348,7 @@ class Parser(object):
         pose = PoseStamped()
         pose.pose.position=point
         pose.pose.orientation.w=1
-        pose.header.frame_id = "rgb_camera_link"
+        pose.header.frame_id = CAMERA_FRAME
         pose = self._tl.transformPose(REFERENCE_FRAME, pose)
         point = pose.pose.position
         d_min=scale/2
