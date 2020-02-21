@@ -7,10 +7,13 @@ Panels:
         - /Global Options1
         - /RobotModel1
         - /TF1
+        - /TF1/Status1
+        - /TF1/Frames1
         - /TF1/Tree1
         - /Marker1
         - /Path1
         - /PoseArray1
+        - /CameraPub1
         - /PointCloud21
       Splitter Ratio: 0.5289514660835266
     Tree Height: 1730
@@ -138,6 +141,8 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        camera1:
+          Value: true
         camera_base:
           Value: true
         depth_camera_link:
@@ -146,27 +151,11 @@ Visualization Manager:
           Value: true
         panda_hand:
           Value: true
-        panda_leftfinger:
-          Value: true
         panda_link0:
-          Value: true
-        panda_link1:
-          Value: true
-        panda_link2:
-          Value: true
-        panda_link3:
-          Value: true
-        panda_link4:
-          Value: true
-        panda_link5:
-          Value: true
-        panda_link6:
           Value: true
         panda_link7:
           Value: true
         panda_link8:
-          Value: true
-        panda_rightfinger:
           Value: true
         rel_ik_zero:
           Value: true
@@ -174,11 +163,9 @@ Visualization Manager:
           Value: true
         sim_end_effector:
           Value: true
-        tag_2:
-          Value: true
       Marker Scale: 0.20000000298023224
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
@@ -189,24 +176,9 @@ Visualization Manager:
             rgb_camera_link:
               {}
           panda_link0:
-            panda_link1:
-              panda_link2:
-                panda_link3:
-                  panda_link4:
-                    panda_link5:
-                      panda_link6:
-                        panda_link7:
-                          panda_link8:
-                            panda_hand:
-                              panda_leftfinger:
-                                {}
-                              panda_rightfinger:
-                                {}
-                              sim_end_effector:
-                                {}
-            rel_ik_zero:
+            camera1:
               {}
-            tag_2:
+            rel_ik_zero:
               {}
       Update Interval: 0
       Value: true
@@ -266,6 +238,28 @@ Visualization Manager:
       Topic: /pois_pose
       Unreliable: false
       Value: true
+    - Background Color: 0; 0; 0
+      Camera Info Topic: /virtual_camera/camera_info
+      Class: rviz_camera_stream/CameraPub
+      Display namespace: /
+      Enabled: true
+      Frame Rate: -1
+      Image Encoding: rgb8
+      Image Topic: /virtual_camera/image
+      Name: CameraPub
+      Near Clip Distance: 0.009999999776482582
+      Queue Size: 2
+      Value: true
+      Visibility:
+        Grid: true
+        InteractiveMarkers: true
+        Marker: true
+        Path: true
+        PointCloud2: true
+        PoseArray: true
+        RobotModel: true
+        TF: true
+        Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -276,7 +270,7 @@ Visualization Manager:
       Channel Name: intensity
       Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: Intensity
+      Color Transformer: RGB8
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -324,25 +318,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.8079485893249512
+      Distance: 0.45480847358703613
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.021951235830783844
-        Y: 0.05289211496710777
-        Z: 0.28869402408599854
+        X: 0.5407347679138184
+        Y: -0.17296713590621948
+        Z: -0.012110440991818905
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.464796781539917
+      Pitch: 0.6897972226142883
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.4776361286640167
+      Yaw: 4.875831127166748
     Saved: ~
 Window Geometry:
   Displays:

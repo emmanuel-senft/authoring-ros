@@ -21,38 +21,38 @@ class Poi(object):
         array = POIArray()
         
         #POI1
-        poi = POI()
-        poi.pose.pose.position.x=.463
-        poi.pose.pose.position.y=-.277
-        poi.pose.pose.position.z=.063
-        poi.pose.pose.orientation.w=1
-        poi.pose.header.frame_id = REFERENCE_FRAME
-        poi.type = poi.SCREW
-        poi.id = 0
-        array.poi_array.append(poi)
+        poi_init = POI()
+        poi_init.pose.pose.position.x=.463
+        poi_init.pose.pose.position.y=-.277
+        poi_init.pose.pose.position.z=.063
+        poi_init.pose.pose.orientation.w=1
+        poi_init.pose.header.frame_id = REFERENCE_FRAME
+        poi_init.type = poi_init.SCREW
+        poi_init.id = 0
+        array.poi_array.append(poi_init)
         for i in range(4):
-            poi = copy.deepcopy(poi)
-            poi.pose.pose.position.x+=0.0375
+            poi = copy.deepcopy(poi_init)
+            poi.pose.pose.position.x+=(i+1)*0.0375
             poi.id = i+1
             array.poi_array.append(poi)
         for i in range(5):
             for j in range(5):
-                poi = copy.deepcopy(poi)
-                poi.pose.pose.position.x=.266+.036*i
-                poi.pose.pose.position.y=-.278+.04*j
-                poi.pose.pose.position.z=.066
+                poi = copy.deepcopy(poi_init)
+                poi.pose.pose.position.x+=-.197+.036*i
+                poi.pose.pose.position.y+=-.001+.04*j
+                poi.pose.pose.position.z+=.003
                 poi.id = j+5*i
                 poi.type = poi.HOLE
                 array.poi_array.append(poi)
 
-        poi = copy.deepcopy(poi)
+        poi = copy.deepcopy(poi_init)
         poi.type = poi.SCREW_DRIVER
         #poi5.pose.pose.position.x = -0.045
         #poi5.pose.pose.position.y = 0.340
         #poi5.pose.pose.position.z = -0.169
-        poi.pose.pose.position.x = .657
-        poi.pose.pose.position.y = -0.281
-        poi.pose.pose.position.z = 0.157
+        poi.pose.pose.position.x += .19
+        #poi.pose.pose.position.y = -0.281
+        poi.pose.pose.position.z += .094
         array.poi_array.append(poi)
 
         self._pois_pub.publish(array)
