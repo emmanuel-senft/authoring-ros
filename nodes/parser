@@ -42,11 +42,33 @@ class Parser(object):
         self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
 
     def on_poi(self, msg):
+        poi_gui="poi;"
         for p in msg.poi_array:
             p.pose = self._tl.transformPose(REFERENCE_FRAME, p.pose)
             self._pois.append(p)
             if p.type == p.SCREW:
                 self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
+
+            #Inform interface of poi
+            pixel = self.get_pixel_from_pose(p.pose)
+            name = self.get_name(p)
+            poi_gui+=name+":"+pixel+";"
+
+        poi_gui = poi_gui[:-1]
+        self._gui_pub.publish(poi_gui)
+
+    def get_name(self, poi):
+        name = ""
+        if poi.type == poi.SCREW:
+            name = "screw:"
+        if poi.type == poi.HOLE:
+            name = "hole:"
+        if poi.type == poi.PUSHER:
+            name = "pusher:"
+        if poi.type == poi.SCREW_DRIVER:
+            name = "screwdriver:"
+        name += str(poi.id)
+        return name
 
     def get_xyz_from_pixel(self,x,y,d):
         p = [x,y]
@@ -57,17 +79,20 @@ class Parser(object):
         point.y=d/p3d[2]*p3d[1]
         point.z=d/p3d[2]*p3d[2]
         return point
+    
+    def get_pixel_from_pose(self, pose):
+        p = self._tl.transformPose(CAMERA_FRAME,pose)
+        p = p.pose.position
+        p=[p.x,p.y,p.z]
+        pixel = self._model.project3dToPixel(p)
+        return str(int(pixel[0]))+","+str(int(pixel[1]))
 
     def get_pixel_from_point(self, p):
         pose = PoseStamped()
         pose.pose.position = p
         pose.pose.orientation.w = 1
         pose.header.frame_id = REFERENCE_FRAME
-        p = self._tl.transformPose(CAMERA_FRAME,pose)
-        p = p.pose.position
-        p=[p.x,p.y,p.z]
-        pixel = self._model.project3dToPixel(p)
-        return str(int(pixel[0]))+","+str(int(pixel[1]))
+        return self.get_pixel_from_pose(pose)
 
     def publish_pose(self,point):
         pose = PoseStamped()
@@ -286,7 +311,7 @@ class Parser(object):
                 scale = scale/2.
 
             #And transform to reference frame
-            p = self.snap_to_poi(p,scale)
+            (p,object_str) = self.snap_to_poi(p,scale)
             snap_str += name+":"+str(index)+":"+self.get_pixel_from_point(p)+";"
 
             framed_points.append(p)
@@ -300,13 +325,14 @@ class Parser(object):
                         self._feedback_pub.publish(String("bad_depth"))
                         return None
                 p = self.get_xyz_from_pixel(p.x, p.y,d)
-                p = self.snap_to_poi(p,scale)
+                (p,_) = self.snap_to_poi(p,scale)
                 framed_points.append(p)
             points = framed_points
 
             self._feedback_pub.publish(String("good_depth"))
 
             action = Action()
+            action.item = String(object_str)
             if name == 'surface':
                 self.publish_surface(name, index, points, color, alpha=.5)
                 action.type = action.COVER
@@ -352,12 +378,12 @@ class Parser(object):
         pose = self._tl.transformPose(REFERENCE_FRAME, pose)
         point = pose.pose.position
         d_min=scale/2
-        to_return = point
+        to_return = (point,"")
         for p in self._pois:
             d = self.distance(p.pose.pose.position,point)
             if d < d_min:
                 d_min = d
-                to_return = p.pose.pose.position
+                to_return = (p.pose.pose.position,self.get_name(p))
         return to_return
 
     def distance(self, p1, p2):
