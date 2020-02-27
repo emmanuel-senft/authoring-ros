@@ -101,6 +101,8 @@ catkin_install_python(PROGRAMS
     nodes/tf_printer
     nodes/r_ik_wrapper
     nodes/space_mouse
+    nodes/virtual_camera_manager
+    nodes/camera_switcher
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS pandaJacob

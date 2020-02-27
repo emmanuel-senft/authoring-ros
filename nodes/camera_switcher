@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+import rospy
+import signal
+import sys
+import roslaunch
+from std_msgs.msg import String
+import threading
+
+class Switcher(object):
+    def __init__(self):
+        self._virtual = False
+        args_r = 'compressed in:=/rgb/image_raw compressed out:=/gui/display/image'
+        args_v = 'compressed in:=/virtual_camera/image compressed out:=/gui/display/image'
+        package = 'image_transport'
+        node_type = 'republish'
+
+        self._node_r = roslaunch.core.Node(package, node_type, name=None, namespace='/', machine_name=None, args=args_r)
+        self._node_v = roslaunch.core.Node(package, node_type, name=None, namespace='/', machine_name=None, args=args_v)
+        self._launch = roslaunch.scriptapi.ROSLaunch()
+        self._launch.start()
+        self._process = self._launch.launch(self._node_r)
+
+        self._virtual = False
+
+        self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
+
+    def on_command(self, msg):
+        if msg.data == "camera_switch":
+            thread = threading.Thread(target = self._process.stop)
+            thread.start()
+            self._virtual = not self._virtual
+            node = self._node_v if self._virtual else self._node_r
+            process = self._launch.launch(node)
+            thread.join()
+            self._process = process
+
+    def run(self):
+        rospy.spin()
+
+    def signal_handler(self, signal, frame):
+        sys.exit()
+
+if __name__ == "__main__":
+    rospy.init_node('camera_switcher')
+    switcher = Switcher()
+    signal.signal(signal.SIGINT, switcher.signal_handler)
+    switcher.run()

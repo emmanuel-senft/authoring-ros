@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!-- https://roboticsknowledgebase.com/wiki/tools/stream-rviz/ -->
+<launch>
+    <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0. 0. 0. 1 0 0 0 tag_4 inv_tag_4 100" /> 
+    <node pkg="authoring" type="virtual_camera_manager" name="virtual_camera_manager"/>
+    <node pkg="authoring" type="camera_switcher" name="camera_switcher"/>
+</launch>

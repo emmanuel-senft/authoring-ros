@@ -5,6 +5,7 @@
     <arg name="rgb_point_cloud" default="false"/>
     <arg name="with_utils" default="false"/>
     <arg name="use_relaxed_ik" default="false"/>
+    <arg name="use_virtual_camera" default="true"/>
 
     <group if="$(arg detect_camera)">
         <include file="$(find authoring)/launch/detect.launch">  
@@ -45,6 +46,21 @@
         </include>
     </group>
 
+
+    <group if="$(arg use_virtual_camera)">
+        <include file="$(find authoring)/launch/virtual_camera.launch">  
+        </include>
+    </group>
+
+    <group unless="$(arg use_virtual_camera)">
+        <node
+            pkg="image_transport"
+            type="republish"
+            name="republish_image"
+            args="raw in:=/rgb/image_raw
+                  compressed out:=/gui/display/image">
+        </node>
+    </group>
     <node pkg="authoring" type="static_publisher" name="sim_ee_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />
         <param name="transform" type="string" value="sim_ee_transform" />
