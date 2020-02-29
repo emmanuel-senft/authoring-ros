@@ -17,23 +17,10 @@
     <group unless="$(arg detect_camera)">
         <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
             <param name="file_name" type="string" value="transforms.yaml" />
-            <param name="transform" type="string" value="camera_transform" />
+            <param name="transform" type="string" value="external_camera_transform" />
         </node>
-    </group>
-<!--
-    <group if="$(arg detect_jungle)">
-        <include file="$(find authoring)/launch/detect.launch">  
-            <arg name="default_marker_size" default="79"/>
-        </include>
     </group>
 
-    <group unless="$(arg detect_jungle)">
-        <node pkg="authoring" type="static_publisher" name="jungle_static_publisher">
-            <param name="file_name" type="string" value="transforms.yaml" />
-            <param name="transform" type="string" value="jungle_transform" />
-        </node>
-    </group>
-    -->
     <include file="$(find authoring)/launch/kinect.launch">
         <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
     </include>
@@ -45,7 +32,6 @@
             <arg name="use_relaxed_ik" default="$(arg use_relaxed_ik)"/>
         </include>
     </group>
-
 
     <group if="$(arg use_virtual_camera)">
         <include file="$(find authoring)/launch/virtual_camera.launch">  

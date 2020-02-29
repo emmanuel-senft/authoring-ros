@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="file_name" default="transforms.yaml"/>
-    <arg name="transform" default="camera_transform"/>
+    <arg name="transform" default="external_camera_transform"/>
     <arg name="image_topic" default="/rgb/image_raw"/> 
     <arg name="default_marker_size" default="107"/>
    

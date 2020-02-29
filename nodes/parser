@@ -21,7 +21,7 @@ import copy
 from tf.transformations import quaternion_from_euler
 
 REFERENCE_FRAME='panda_link0'
-CAMERA_FRAME='rgb_camera_link'
+CAMERA_FRAME='external_rgb_camera_link'
 
 class Parser(object):
     def __init__(self):

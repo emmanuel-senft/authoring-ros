@@ -6,7 +6,7 @@
 
     <param name="publish_frequency" type="double" value="100.0" />
     <param name="tf_prefix" type="string" value="" />
-    <param name="robot_description" command="cat $(find authoring)/urdfs/panda_arm_hand.urdf" />
+    <param name="robot_description" command="cat $(find authoring)/urdfs/panda.urdf" />
    <!-- Robot state publisher    -->
     <node pkg="robot_state_publisher" type="robot_state_publisher" name="panda_state_publisher">
     <remap from="joint_states" to="/viz/joint_states"/>

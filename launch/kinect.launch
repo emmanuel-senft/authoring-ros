@@ -2,6 +2,7 @@
 <launch>
     <arg name="rgb_point_cloud" default="false"/>
     <include file="$(find authoring)/launch/driver.launch" >
+        <arg name="tf_prefix" default="external_"/>
         <arg name="fps" default="30"/>
         <arg name="depth_mode" default="NFOV_UNBINNED"/>
         <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>

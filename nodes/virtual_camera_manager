@@ -48,13 +48,16 @@ class VirtualCamera(object):
 
             self._info_pub.publish(self._info_low_res)
         except: 
-            (trans,q) = self._tl.lookupTransform("panda_link0","rgb_camera_link", rospy.Time(0))
-            self._info_pub.publish(self._info_high_res)
-            self._br.sendTransform(trans,
-                    q,
-                    rospy.Time.now(),
-                    "camera1",
-                    "panda_link0")
+            try:
+                (trans,q) = self._tl.lookupTransform("panda_link0","external_rgb_camera_link", rospy.Time(0))
+                self._info_pub.publish(self._info_high_res)
+                self._br.sendTransform(trans,
+                        q,
+                        rospy.Time.now(),
+                        "camera1",
+                        "panda_link0")
+            except:
+                pass
             return
 
 
