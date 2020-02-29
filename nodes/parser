@@ -32,17 +32,18 @@ class Parser(object):
         self._marker_pub = rospy.Publisher("/gui/markers", Marker, queue_size=1)
         self._model = image_geometry.PinholeCameraModel()
         self._model.fromCameraInfo(rospy.wait_for_message("rgb/camera_info", CameraInfo))
-        self._feedback_pub = rospy.Publisher("/gui/feedback",String,queue_size=1)
+        self._gui_pub = rospy.Publisher("/parser/gui_info",String,queue_size=1,latch = True)
         self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=1)
 
         self._br = tf.TransformBroadcaster()
         rospy.sleep(.5)
         self._pois = []
+        self._poi_gui = ""
         self._poi_sub = rospy.Subscriber("/pois", POIArray, self.on_poi, queue_size = 1)
         self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
 
     def on_poi(self, msg):
-        poi_gui="poi;"
+        self._poi_gui="poi;"
         for p in msg.poi_array:
             p.pose = self._tl.transformPose(REFERENCE_FRAME, p.pose)
             self._pois.append(p)
@@ -52,10 +53,21 @@ class Parser(object):
             #Inform interface of poi
             pixel = self.get_pixel_from_pose(p.pose)
             name = self.get_name(p)
-            poi_gui+=name+":"+pixel+";"
+            self._poi_gui+=name+":"+pixel+";"
 
-        poi_gui = poi_gui[:-1]
-        self._gui_pub.publish(poi_gui)
+        self._poi_gui = self._poi_gui[:-1]
+        self._gui_pub.publish(self._poi_gui)
+
+    def get_vect(self, v):
+        toreturn = []
+        try:
+            toreturn.append(v.x)
+            toreturn.append(v.y)
+            toreturn.append(v.z)
+            toreturn.append(v.w)
+        except:
+            pass
+        return toreturn
 
     def get_name(self, poi):
         name = ""
@@ -249,9 +261,23 @@ class Parser(object):
             points.append(point)
         return points
 
+    def get_pose_from_trans(self, trans, rot):
+        pose = Pose()
+        pose.position.x = trans[0]
+        pose.position.y = trans[1]
+        pose.position.z = trans[2]
+        pose.orientation.x = rot[0]
+        pose.orientation.y = rot[1]
+        pose.orientation.z = rot[2]
+        pose.orientation.w = rot[3]
+        return pose
+
+
     def on_command(self, message):
         list_actions = message.data.split(";")
         command_type = list_actions[0]
+        if command_type == 'init_gui':
+            self._gui_pub.publish(self._poi_gui)
         if command_type == 'mouse':
             arg = list_actions[1].split(":")
             twist = Twist()
@@ -278,86 +304,98 @@ class Parser(object):
 
         list_actions.pop(0)
         image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image))
-        snap_str = "snap;"
 
         for action in list_actions:
             cmd = action.split(":")
         
             name = cmd[0]
-            index = int(cmd[1])
-            points = self.get_points(cmd[2])
-            color = cmd[3]
-            scale = None
-            framed_points = []
+            item = ""
+            action = Action()
+            action.pose.header.frame_id = REFERENCE_FRAME
+            #Get item name
+            if cmd[1].find(",") == -1:
+                (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1], rospy.Time(0)) 
+                action.item = String(cmd[1])
+                action.pose.pose = self.get_pose_from_trans(trans,rot)
 
-            point = Point()
-            point.x = points[0].x
-            point.y = points[0].y
-            d = image[point.y,point.x]
-            if d == 0.0:
-                print name
-                print index
-                print "bad depth"
-                self._feedback_pub.publish(String("bad_depth"))
-                return None
+            #get item pixel coord
+            else:
+                coord = cmd[1].split('_')[0].split(',')
+                point = Point()
+                point.x = int(coord[0])
+                point.y = int(coord[1])
+                d = image[point.y,point.x]
+                action.item = String(cmd[1].split('_')[0])
+                if d == 0.0:
+                    print "bad depth"
+                    self._gui_pub.publish(String("bad_depth"))
+                    return None
+                p = self.get_xyz_from_pixel(point.x,point.y,d)
+                pose = PoseStamped()
+                pose.header.frame_id = CAMERA_FRAME
+                pose.pose.position = p
+                pose.pose.orientation.w = 1
+                action.pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+                action.pose.pose.orientation.x = 0
+                action.pose.pose.orientation.y = 0
+                action.pose.pose.orientation.z = 0
+                action.pose.pose.orientation.w = 1
+            #points = self.get_points(cmd[2])
+            #color = cmd[3]
+            #scale = None
+            #framed_points = []
 
             #Still in camera frame
-            p = self.get_xyz_from_pixel(point.x,point.y,d)
-            if len(points) == 2:
-                scale = np.sqrt((points[0].x-points[1].x)**2 + (points[0].y-points[1].y)**2)*p.z/500.
-            else:
-                scale = .0001
-            if name == "arrow":
-                scale = scale/2.
+            #p = self.get_xyz_from_pixel(point.x,point.y,d)
+            #if len(points) == 2:
+            #    scale = np.sqrt((points[0].x-points[1].x)**2 + (points[0].y-points[1].y)**2)*p.z/500.
+            #else:
+            #    scale = .0001
+            #if name == "arrow":
+            #    scale = scale/2.
 
             #And transform to reference frame
-            (p,object_str) = self.snap_to_poi(p,scale)
-            snap_str += name+":"+str(index)+":"+self.get_pixel_from_point(p)+";"
+            #(p,object_str) = self.snap_to_poi(p,scale)
 
-            framed_points.append(p)
-            for p in points[1:]:
-                if len(points) != 2:
-                    d = image[p.y,p.x]
-                    if d == 0.0:
-                        print name
-                        print index
-                        print "bad depth"
-                        self._feedback_pub.publish(String("bad_depth"))
-                        return None
-                p = self.get_xyz_from_pixel(p.x, p.y,d)
-                (p,_) = self.snap_to_poi(p,scale)
-                framed_points.append(p)
-            points = framed_points
+            #framed_points.append(p)
+            #for p in points[1:]:
+            #    if len(points) != 2:
+            #        d = image[p.y,p.x]
+            #        if d == 0.0:
+            #            print name
+            #            print index
+            #            print "bad depth"
+            #            self._feedback_pub.publish(String("bad_depth"))
+            #            return None
+            #    p = self.get_xyz_from_pixel(p.x, p.y,d)
+            #    (p,_) = self.snap_to_poi(p,scale)
+            #    framed_points.append(p)
+            #points = framed_points
 
-            self._feedback_pub.publish(String("good_depth"))
+            self._gui_pub.publish(String("good_depth"))
 
-            action = Action()
-            action.item = String(object_str)
+            #action.item = String(object_str)
             if name == 'surface':
-                self.publish_surface(name, index, points, color, alpha=.5)
+                #self.publish_surface(name, index, points, color, alpha=.5)
                 action.type = action.COVER
                 continue
 
             if name == 'rect':
-                self.publish_rectangle(name, index, points, color, alpha=.5)
+                #self.publish_rectangle(name, index, points, color, alpha=.5)
                 continue
 
-            if name == 'spiral':
-                self.publish_spiral(name,index,points[0],scale=scale,color=color,alpha=1)
+            if name == 'Screw':
+                #self.publish_spiral(name,index,points[0],scale=scale,color=color,alpha=1)
                 action.type = action.SCREW
-            if name == 'circle':
-                self.publish_sphere(name,index,points[0],scale=scale,color=color,alpha=.5)
+            if name == 'Pick':
+                #self.publish_sphere(name,index,points[0],scale=scale,color=color,alpha=.5)
                 action.type = action.PICK
-            if name == 'arrow':
-                self.publish_arrow(name, index, points,scale=.05,color=color,alpha=.5)
+            if name == 'Place':
+                #self.publish_arrow(name, index, points,scale=.05,color=color,alpha=.5)
                 action.type = action.PLACE 
 
-            action.id = index
-            action.pose.header.frame_id = REFERENCE_FRAME
-            action.pose.pose.position = points[0]
-            action.pose.pose.orientation.w = 1
+            #action.id = index
             actions.append(action)
-        self._feedback_pub.publish(String(snap_str))
 
         cmd = Command()
         if command_type == "exec":
@@ -369,22 +407,6 @@ class Parser(object):
         for action in actions:
             cmd.core_action.append(action)
         self._command_pub.publish(cmd)
-
-    def snap_to_poi(self,point,scale):
-        pose = PoseStamped()
-        pose.pose.position=point
-        pose.pose.orientation.w=1
-        pose.header.frame_id = CAMERA_FRAME
-        pose = self._tl.transformPose(REFERENCE_FRAME, pose)
-        point = pose.pose.position
-        d_min=scale/2
-        to_return = (point,"")
-        for p in self._pois:
-            d = self.distance(p.pose.pose.position,point)
-            if d < d_min:
-                d_min = d
-                to_return = (p.pose.pose.position,self.get_name(p))
-        return to_return
 
     def distance(self, p1, p2):
         return np.sqrt((p1.x-p2.x)**2+(p1.y-p2.y)**2+(p1.z-p2.z)**2)

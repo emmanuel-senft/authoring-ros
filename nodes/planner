@@ -113,23 +113,33 @@ class Planner(object):
             self._plan.append(plus_low2)
             self._plan.append(plus_high)
             self._plan.append(move_above)
+        action.finished.data = True
+        self._plan.append(action)
         
+    def get_type(self,action):
+        if action.type == action.PICK:
+            return "Pick"
+        if action.type == action.SCREW:
+            return "Screw"
+        if action.type == action.PLACE:
+            return "Place"
+        if action.type == action.COVER:
+            return "Cover"
+        if action.type == action.MOVE:
+            return "Move"
+        if action.type == action.GRASP:
+            return "Grasp"
+        if action.type == action.RELEASE:
+            return "Release"
+        return ""
+
     def on_command(self,msg):
         print "new command"
         self._plan = []
         current_action_id = 0
         self._type = msg.type
-        while len(msg.core_action)>0:
-            print len(msg.core_action)
-            current_action = []
-            for sub_action in msg.core_action:
-                if sub_action.id == current_action_id:
-                    current_action.append(sub_action)
-            current_action = sorted(current_action,key=lambda action: action.type)
-            for sub_action in current_action:
-                msg.core_action.remove(sub_action)
-                self.add_subaction(sub_action)
-            current_action_id += 1
+        for sub_action in msg.core_action:
+            self.add_subaction(sub_action)
 
         if msg.type == msg.SIM:
             self._sim = True
@@ -167,6 +177,9 @@ class Planner(object):
             return
 
         current_action = self._plan[0]
+        if current_action.finished.data:
+            self._event_pub.publish(String("action_finished;"+self.get_type(current_action)+":"+current_action.item.data))
+            self.next_sub_action()
         if current_action.type == current_action.MOVE:
             if self.go_to_position(current_action.pose):
                 self.next_sub_action()
@@ -302,7 +315,7 @@ class Planner(object):
         print len(self._plan)
         for action in self._plan:
             print action.type
-            if action.type == action.MOVE:
+            if action.type == action.MOVE and not action.finished:
                 path.poses.append(action.pose)
         self._path_pub.publish(path)
 
