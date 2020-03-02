@@ -311,36 +311,41 @@ class Parser(object):
             name = cmd[0]
             item = ""
             action = Action()
-            action.pose.header.frame_id = REFERENCE_FRAME
+            action.poses.header.frame_id = REFERENCE_FRAME
             #Get item name
             if cmd[1].find(",") == -1:
                 (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1], rospy.Time(0)) 
                 action.item = String(cmd[1])
-                action.pose.pose = self.get_pose_from_trans(trans,rot)
+                pose = self.get_pose_from_trans(trans,rot)
+                action.poses.poses.append(pose)
 
             #get item pixel coord
             else:
-                coord = cmd[1].split('_')[0].split(',')
-                point = Point()
-                point.x = int(coord[0])
-                point.y = int(coord[1])
-                d = image[point.y,point.x]
-                action.item = String(cmd[1].split('_')[0])
-                if d == 0.0:
-                    print "bad depth"
-                    self._gui_pub.publish(String("bad_depth"))
-                    return None
-                p = self.get_xyz_from_pixel(point.x,point.y,d)
-                pose = PoseStamped()
-                pose.header.frame_id = CAMERA_FRAME
-                pose.pose.position = p
-                pose.pose.orientation.w = 1
-                action.pose = self._tl.transformPose(REFERENCE_FRAME, pose)
-                action.pose.pose.orientation.x = 0
-                action.pose.pose.orientation.y = 0
-                action.pose.pose.orientation.z = 0
-                action.pose.pose.orientation.w = 1
-            #points = self.get_points(cmd[2])
+                for coord in cmd[1].split('_'):
+                    coord = coord.split(',')
+                    point = Point()
+                    point.x = int(coord[0])
+                    point.y = int(coord[1])
+                    d = image[point.y,point.x]
+                    action.item = String(cmd[1].split('_')[0])
+                    if d == 0.0:
+                        print "bad depth"
+                        self._gui_pub.publish(String("bad_depth"))
+                        return None
+                    p = self.get_xyz_from_pixel(point.x,point.y,d)
+                    pose = PoseStamped()
+                    pose.header.frame_id = CAMERA_FRAME
+                    pose.pose.position = p
+                    pose.pose.orientation.w = 1
+                    pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+                    pose.pose.orientation.x = 0
+                    pose.pose.orientation.y = 0
+                    pose.pose.orientation.z = 0
+                    pose.pose.orientation.w = 1
+                    action.poses.header = pose.header
+                    action.poses.poses.append(pose.pose)
+
+           #points = self.get_points(cmd[2])
             #color = cmd[3]
             #scale = None
             #framed_points = []
@@ -375,10 +380,9 @@ class Parser(object):
             self._gui_pub.publish(String("good_depth"))
 
             #action.item = String(object_str)
-            if name == 'surface':
+            if name == 'Wipe':
                 #self.publish_surface(name, index, points, color, alpha=.5)
-                action.type = action.COVER
-                continue
+                action.type = action.WIPE
 
             if name == 'rect':
                 #self.publish_rectangle(name, index, points, color, alpha=.5)

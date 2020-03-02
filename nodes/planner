@@ -8,9 +8,9 @@ import PyKDL
 import copy
 import numpy as np
 
-from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion,Vector3
+from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion,Vector3,Wrench
 from nav_msgs.msg import Path
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from authoring_msgs.msg import Action,Command
 
 REFERENCE_FRAME='panda_link0'
@@ -27,26 +27,36 @@ class Planner(object):
         self._command_sub = rospy.Subscriber("/parser/command", Command, self.on_command)
         self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
         self._command_pub = rospy.Publisher("/planner/command", String, queue_size=1)
+        self._force_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_force)
         self._plan = []
         self._running = False
         self._vel_pub.publish(Twist())
         self._sim = False
         self._integrator = Twist()
         self._freq = 100.
+        self._force = Vector3()
+
+    def on_force(self, msg):
+        self._force = msg.force
 
     def add_subaction(self, action):
         rot = tf.transformations.quaternion_from_euler(0,0,0)
+        ref_pose = PoseStamped()
+        ref_pose.header = action.poses.header
+        ref_pose.pose = action.poses.poses[0]
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
         if action.type == action.PICK:
             print "pick"
             move_above = Action()
+            move_above.finished.data = False
             move_above.type = move_above.MOVE
-            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z
             grasp = Action()
+            grasp.finished.data = False
             grasp.type = grasp.GRASP
             self._plan.append(move_above)
             self._plan.append(move_to)
@@ -56,8 +66,9 @@ class Planner(object):
         if action.type == action.PLACE:
             print "place"
             move_above = Action()
+            move_above.finished.data = False
             move_above.type = move_above.MOVE
-            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
@@ -65,6 +76,7 @@ class Planner(object):
             move_to.pose.pose.position.z+=.02
             move_safe = copy.deepcopy(move_above)
             release = Action()
+            release.finished.data = False
             release.type = release.RELEASE
             self._plan.append(move_above)
             self._plan.append(move_to)
@@ -81,8 +93,9 @@ class Planner(object):
             q_minus = Quaternion(rot[0],rot[1],rot[2],rot[3])
  
             move_above = Action()
+            move_above.finished.data = False
             move_above.type = move_above.MOVE
-            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, action.pose)
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.15
@@ -113,8 +126,68 @@ class Planner(object):
             self._plan.append(plus_low2)
             self._plan.append(plus_high)
             self._plan.append(move_above)
+        if action.type == action.WIPE:
+            max_off=.05
+            p0 = action.poses.poses[0]
+            p1 = action.poses.poses[1]
+            p2 = action.poses.poses[2]
+            p3 = action.poses.poses[3]
+
+            move_above = Action()
+            move_above.type = move_above.MOVE
+            move_above.finished.data = False
+            move_above.pose.pose = copy.deepcopy(p0)
+            move_above.pose.pose.position.z+=.10
+            self._plan.append(move_above)
+
+            #distance of the left and right sides of the 'rectangle'
+            d_l = self.get_distance(p0,p3)
+            d_r = self.get_distance(p1,p2)
+            #number of passes required to ensure that a side is wipped fully
+            n_l = np.ceil(d_l/max_off)
+            n_r = np.ceil(d_r/max_off)
+            n = max(n_l,n_r)
+            p_l=[]
+            p_r=[]
+            for i in range(int(n+1)):
+                p_l.append(self.point_toward(p0,p3,i/n))
+                p_r.append(self.point_toward(p1,p2,i/n))
+            move = Action()
+            move.type = move.MOVE_TO_CONTACT
+            move.finished.data = False
+            for i in range(int(n)):
+                move = copy.deepcopy(move)
+                move.pose = p_l[i] if not i%2 else p_r[i]
+                self._plan.append(move)
+                move = copy.deepcopy(move)
+                move.pose = p_r[i] if not i%2 else p_l[i]
+                self._plan.append(move)
+
+            move_above = copy.deepcopy(move_above)
+            move_above.pose = copy.deepcopy(move.pose)
+            move_above.pose.pose.position.z += .10
+            self._plan.append(move_above)
+
+
+
         action.finished.data = True
         self._plan.append(action)
+
+    def point_toward(self, p0, p1, ratio):
+        p = PoseStamped()
+        #Assume frame are in reference frame
+        p.header.frame_id = REFERENCE_FRAME
+        #Assume all points have same orientation
+        p.pose.orientation = p0.orientation
+        p.pose.position.x += p0.position.x + ratio * (p1.position.x-p0.position.x)
+        p.pose.position.y += p0.position.y + ratio * (p1.position.y-p0.position.y)
+        p.pose.position.z += p0.position.z + ratio * (p1.position.z-p0.position.z)
+        return p
+
+
+
+    def get_distance(self, p0, p1):
+        return np.sqrt((p0.position.x-p1.position.x)**2+(p0.position.y-p1.position.y)**2+(p0.position.z-p1.position.z)**2)
         
     def get_type(self,action):
         if action.type == action.PICK:
@@ -123,9 +196,11 @@ class Planner(object):
             return "Screw"
         if action.type == action.PLACE:
             return "Place"
-        if action.type == action.COVER:
-            return "Cover"
+        if action.type == action.WIPE:
+            return "Wipe"
         if action.type == action.MOVE:
+            return "Move"
+        if action.type == action.MOVE_TO_CONTACT:
             return "Move"
         if action.type == action.GRASP:
             return "Grasp"
@@ -183,6 +258,9 @@ class Planner(object):
         if current_action.type == current_action.MOVE:
             if self.go_to_position(current_action.pose):
                 self.next_sub_action()
+        if current_action.type == current_action.MOVE_TO_CONTACT:
+            if self.go_to_position(current_action.pose, contact = True):
+                self.next_sub_action()
         if current_action.type == current_action.GRASP:
             if self.grasp():
                 self.next_sub_action()
@@ -199,7 +277,7 @@ class Planner(object):
         except:
             return [val.x, val.y, val.z]
 
-    def go_to_position(self, goal):
+    def go_to_position(self, goal, contact = False):
         self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "current_goal",REFERENCE_FRAME)
         try:
             ee_frame = ('sim_' if self._sim else '') + 'end_effector'
@@ -231,17 +309,18 @@ class Planner(object):
             angle[2] += 2 * np.pi 
 
         threshold = .005
+        force_threshold = 20.
         dx = math.fabs(pose.position.x)
         dy = math.fabs(pose.position.y)
         dz = math.fabs(pose.position.z)
 
-        if dx < threshold and dy < threshold and dz <threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
+        if dx < threshold and dy < threshold and (dz <threshold or (contact and np.fabs(self._force.z) > force_threshold)) and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
             print "arrived sub point"
             return True
         else:
             twist = Twist()
             max_vel = .10
-            P_lin=8
+            P_lin=8 if not contact else 2
             P_rot=8
             I=0.000
             if dx < 5 * threshold and dx > threshold/2 and pose.position.x*self._integrator.linear.x >= 0:
@@ -315,7 +394,7 @@ class Planner(object):
         print len(self._plan)
         for action in self._plan:
             print action.type
-            if action.type == action.MOVE and not action.finished:
+            if (action.type == action.MOVE or action.type == action.MOVE_TO_CONTACT) and not action.finished.data:
                 path.poses.append(action.pose)
         self._path_pub.publish(path)
 
