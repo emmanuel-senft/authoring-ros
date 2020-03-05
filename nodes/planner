@@ -45,6 +45,28 @@ class Planner(object):
         ref_pose.header = action.poses.header
         ref_pose.pose = action.poses.poses[0]
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
+        if action.type == action.MOVE_OBJECT:
+            a1 = Action()
+            a1.type = a1.PICK
+            a1.item = String(action.item.data.split('-')[0])
+            a1.poses.header = action.poses.header
+            a1.poses.poses.append(action.poses.poses[0])
+            self.add_subaction(a1)
+            a2 = Action()
+            a2.type = a2.PLACE
+            a2.item = a1.item
+            a2.poses.header = action.poses.header
+            a2.poses.poses.append(action.poses.poses[1])
+            self.add_subaction(a2)
+
+        if action.type == action.MOVE:
+            move = Action()
+            move.finished.data = False
+            move.type = move.MOVE
+            move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
+            move.pose.pose.orientation = q
+            self._plan.append(move)
+
         if action.type == action.PICK:
             print "pick"
             move_above = Action()
@@ -206,6 +228,8 @@ class Planner(object):
             return "Grasp"
         if action.type == action.RELEASE:
             return "Release"
+        if action.type == action.MOVE_OBJECT:
+            return "Move"
         return ""
 
     def on_command(self,msg):

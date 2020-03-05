@@ -313,7 +313,16 @@ class Parser(object):
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             #Get item name
-            if cmd[1].find(",") == -1:
+            if cmd[0] == "Move":
+                action.item = String(cmd[1])
+                (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1].split('-')[0], rospy.Time(0)) 
+                pose = self.get_pose_from_trans(trans,rot)
+                action.poses.poses.append(pose)
+                (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1].split('-')[1], rospy.Time(0)) 
+                pose = self.get_pose_from_trans(trans,rot)
+                action.poses.poses.append(pose)
+                
+            elif cmd[1].find(",") == -1:
                 (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1], rospy.Time(0)) 
                 action.item = String(cmd[1])
                 pose = self.get_pose_from_trans(trans,rot)
@@ -397,6 +406,8 @@ class Parser(object):
             if name == 'Place':
                 #self.publish_arrow(name, index, points,scale=.05,color=color,alpha=.5)
                 action.type = action.PLACE 
+            if name == 'Move':
+                action.type = action.MOVE_OBJECT
 
             #action.id = index
             actions.append(action)
