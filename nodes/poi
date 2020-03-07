@@ -4,18 +4,20 @@ import math
 import rospy
 import signal
 import sys
-from geometry_msgs.msg import PoseStamped, PoseArray
+from geometry_msgs.msg import PoseStamped, PoseArray, Quaternion, TransformStamped
 from authoring_msgs.msg import POI, POIArray
 import tf
+import tf2_ros
 import copy
 
 REFERENCE_FRAME='panda_link0'
 
 class Poi(object):
     def __init__(self):
-        self._br = tf.TransformBroadcaster()
+        self._br = tf2_ros.TransformBroadcaster()
         self._pois_pub = rospy.Publisher("/pois",POIArray,queue_size=1,latch=True)
         self._array=POIArray()
+        self._tf_array = []
         self.init_pois()
         
     def init_pois(self):

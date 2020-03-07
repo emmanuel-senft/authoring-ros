@@ -21,7 +21,7 @@ import copy
 from tf.transformations import quaternion_from_euler
 
 REFERENCE_FRAME='panda_link0'
-CAMERA_FRAME='external_rgb_camera_link'
+CAMERA_FRAME='camera1'
 
 class Parser(object):
     def __init__(self):
@@ -32,31 +32,44 @@ class Parser(object):
         self._marker_pub = rospy.Publisher("/gui/markers", Marker, queue_size=1)
         self._model = image_geometry.PinholeCameraModel()
         self._model.fromCameraInfo(rospy.wait_for_message("rgb/camera_info", CameraInfo))
-        self._gui_pub = rospy.Publisher("/parser/gui_info",String,queue_size=1,latch = True)
+        self._gui_pub = rospy.Publisher("/parser/gui_info",String,queue_size=1)
         self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=1)
+        self._panda_command = rospy.Publisher("/panda/commands",String, queue_size=1)
 
         self._br = tf.TransformBroadcaster()
         rospy.sleep(.5)
         self._pois = []
         self._poi_gui = ""
         self._poi_sub = rospy.Subscriber("/pois", POIArray, self.on_poi, queue_size = 1)
-        self._command_sub = rospy.Subscriber("gui/command", String, self.on_command, queue_size = 1)
+        self._command_sub = rospy.Subscriber("/gui/command", String, self.on_command, queue_size = 1)
+        self._event_sub = rospy.Subscriber("/event", String, self.on_event, queue_size = 1)
+
+    def on_event(self, msg):
+        if msg.data == "motion_finished":
+            self.publish_pois()
 
     def on_poi(self, msg):
-        self._poi_gui="poi;"
         for p in msg.poi_array:
             p.pose = self._tl.transformPose(REFERENCE_FRAME, p.pose)
             self._pois.append(p)
-            if p.type == p.SCREW:
-                self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
+        self.publish_pois()
 
-            #Inform interface of poi
-            pixel = self.get_pixel_from_pose(p.pose)
-            name = self.get_name(p)
-            self._poi_gui+=name+":"+pixel+";"
+    def publish_pois(self):
+        self._poi_gui="poi;"
+        done = False
+        while not done:
+            try:
+                for p in self._pois:
+                    #Inform interface of poi
+                    pixel = self.get_pixel_from_pose(p.pose)
+                    name = self.get_name(p)
+                    self._poi_gui+=name+":"+pixel+";"
 
-        self._poi_gui = self._poi_gui[:-1]
-        self._gui_pub.publish(self._poi_gui)
+                self._poi_gui = self._poi_gui[:-1]
+                self._gui_pub.publish(self._poi_gui)
+                done = True
+            except:
+                pass
 
     def get_vect(self, v):
         toreturn = []
@@ -276,8 +289,8 @@ class Parser(object):
     def on_command(self, message):
         list_actions = message.data.split(";")
         command_type = list_actions[0]
-        if command_type == 'init_gui':
-            self._gui_pub.publish(self._poi_gui)
+        if command_type == 'init_gui' or command_type == "lock":
+            self.publish_pois()
         if command_type == 'mouse':
             arg = list_actions[1].split(":")
             twist = Twist()
@@ -287,6 +300,24 @@ class Parser(object):
             twist.angular.z = int(arg[3])/3000.
             self._vel_pub.publish(twist)
             return
+
+        if command_type == "reset_position":
+            self._panda_command.publish(String("release"))
+            action = Action()
+            action.poses.header.frame_id = REFERENCE_FRAME
+            action.type = action.RESET
+            pose = Pose()
+            pose.position.x = 0.18
+            pose.position.y = 0.
+            pose.position.z = 0.6
+            pose.orientation.w = 1
+            action.poses.poses.append(pose)
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
+
         if command_type == 'remove':
             cmd = list_actions[1].split(":")
 
@@ -313,7 +344,17 @@ class Parser(object):
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             #Get item name
-            if cmd[0] == "Move":
+            if cmd[0] == "Reset":
+                action.type = action.RESET
+                action.poses.header.frame_id = REFERENCE_FRAME
+                pose = Pose()
+                pose.position.x = 0.18
+                pose.position.y = 0.
+                pose.position.z = 0.6
+                pose.orientation.w = 1
+                action.poses.poses.append(pose)
+    
+            elif cmd[0] == "Move":
                 action.item = String(cmd[1])
                 (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1].split('-')[0], rospy.Time(0)) 
                 pose = self.get_pose_from_trans(trans,rot)

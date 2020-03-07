@@ -103,6 +103,7 @@ catkin_install_python(PROGRAMS
     nodes/space_mouse
     nodes/virtual_camera_manager
     nodes/camera_switcher
+    nodes/tracker
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS pandaJacob

@@ -6,6 +6,8 @@
     <arg name="with_utils" default="false"/>
     <arg name="use_relaxed_ik" default="false"/>
     <arg name="use_virtual_camera" default="true"/>
+    <arg name="use_external_kinect" default="false"/>
+    <arg name="use_internal_kinect" default="true"/>
 
     <group if="$(arg detect_camera)">
         <include file="$(find authoring)/launch/detect.launch">  
@@ -14,16 +16,29 @@
         <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0.0504 -.085 -0.005 .707106781 0.707106781 0 0 tag_4 panda_link0 100" /> 
     </group>
 
-    <group unless="$(arg detect_camera)">
-        <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
-            <param name="file_name" type="string" value="transforms.yaml" />
-            <param name="transform" type="string" value="external_camera_transform" />
-        </node>
+    <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
+        <param name="file_name" type="string" value="transforms.yaml" />
+        <param name="transform" type="string" value="external_camera_transform" />
+    </node>
+
+    <node pkg="authoring" type="static_publisher" name="external_view_static_publisher">
+        <param name="file_name" type="string" value="transforms.yaml" />
+        <param name="transform" type="string" value="external_view_transform" />
+    </node>
+
+    <group if="$(arg use_internal_kinect)">
+        <include file="$(find authoring)/launch/kinect.launch">
+            <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
+            <arg name="tf_prefix" default="internal_"/>
+        </include>
     </group>
 
-    <include file="$(find authoring)/launch/kinect.launch">
-        <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
-    </include>
+    <group if="$(arg use_external_kinect)">
+        <include file="$(find authoring)/launch/kinect.launch">
+            <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
+            <arg name="tf_prefix" default="external_"/>
+        </include>
+    </group>
 
     <include file="$(find authoring)/launch/joint_state_pub.launch"/>  
 
@@ -52,7 +67,12 @@
         <param name="transform" type="string" value="sim_ee_transform" />
     </node>
 
-    <node pkg="authoring" type="static_publisher" name="rel_ik_static_publisher">
+    <node pkg="authoring" type="static_publisher" name="rgb_camera_static_publisher">
+        <param name="file_name" type="string" value="transforms.yaml" />
+        <param name="transform" type="string" value="rgb_camera_transform" />
+    </node>
+
+   <node pkg="authoring" type="static_publisher" name="rel_ik_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />
         <param name="transform" type="string" value="relaxed_ik_transform" />
     </node>

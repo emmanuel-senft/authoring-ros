@@ -32,7 +32,8 @@ class Simulator(object):
         joint_topic = ("/r_ik_wrapper" if self._r_ik else "/jacob")+"/joint_vel"
         #Simulator State
         #self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointAngles, self.on_solution, queue_size=1)
-        self._sim = True
+        self._sim = False
+        self._init = False
         self._finger_val = .035
         self._current_joint = [0.0,-0.4,0.0,-2.0,0.0,1.6,0.8,self._finger_val,self._finger_val]
         self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]

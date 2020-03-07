@@ -4,9 +4,11 @@ import math
 import rospy
 import signal
 import sys
-from geometry_msgs.msg import PoseStamped, Pose, Twist, Quaternion
+from geometry_msgs.msg import PoseStamped, Pose, Twist, Quaternion, TransformStamped
 from sensor_msgs.msg import CameraInfo
+from std_msgs.msg import String
 import tf
+import tf2_ros
 from tf.transformations import *
 import copy
 
@@ -14,8 +16,9 @@ REFERENCE_FRAME='panda_link0'
 
 class VirtualCamera(object):
     def __init__(self):
-        self._br = tf.TransformBroadcaster()
-        self._tl = tf.TransformListener()
+        self._br = tf2_ros.TransformBroadcaster()
+        self._tfBuffer = tf2_ros.Buffer()
+        self._tl = tf2_ros.TransformListener(self._tfBuffer)
         rospy.sleep(.5)
 
         self._info_pub = rospy.Publisher("/virtual_camera/camera_info",CameraInfo,queue_size=1,latch=True)
@@ -40,37 +43,77 @@ class VirtualCamera(object):
         info.roi.do_rectify = False 
         self._info_high_res = copy.deepcopy(info)
         self._info_pub.publish(self._info_high_res)
+        self._use_external_camera = False
+        self._last_t = None
+        self._moving = False
+        self._locked = False
+        self._event_sub = rospy.Subscriber("/event",String, self.on_event)
+        self._command_sub = rospy.Subscriber("/gui/command",String, self.on_command)
+        self._sim = False
+        self._camera_t = None
 
+
+    def on_event(self, msg):
+        if msg.data == "start_sim":
+            self._moving = True
+            self._sim = True
+            if not self._locked:
+                t = TransformStamped()
+                t.child_frame_id = "camera1"
+                t.header.frame_id = "external_view"
+                t.transform.rotation.w = 1
+                self._last_t = t
+
+        if msg.data == "motion_finished":
+            self._sim = False
+            self._moving = False
+    def on_command(self, msg):
+        if msg.data == "lock":
+            self._locked = True
+        if msg.data == "unlock":
+            self._locked = False
+            
     def publish_camera_pose(self):
-        try:
-            (trans,q) = self._tl.lookupTransform("inv_tag_4","client_camera", rospy.Time(0))
-            print self._info_low_res.width
-
-            self._info_pub.publish(self._info_low_res)
-        except: 
+        if self._sim:
+            self._camera_t.header.stamp = rospy.Time.now()
+            self._br.sendTransform(self._camera_t)
+        else:
             try:
-                (trans,q) = self._tl.lookupTransform("panda_link0","external_rgb_camera_link", rospy.Time(0))
-                self._info_pub.publish(self._info_high_res)
-                self._br.sendTransform(trans,
-                        q,
-                        rospy.Time.now(),
-                        "camera1",
-                        "panda_link0")
+                camera_frame = "external_" if self._use_external_camera else "internal_"
+                camera_frame += "camera_base"
+                t = self._tfBuffer.lookup_transform("panda_link0","camera_base", rospy.Time(0))
+                t.child_frame_id = camera_frame
+                t.header.stamp = rospy.Time.now()
+                self._camera_t = t
+                self._br.sendTransform(self._camera_t)
             except:
                 pass
+
+        if self._moving or self._locked:
+            self._last_t.header.stamp = rospy.Time.now()
+            self._br.sendTransform(self._last_t)
             return
 
+        t = TransformStamped()
+        try:
+            t = self._tfBuffer.lookup_transform("inv_tag_2","client_camera", rospy.Time(0))
+            coef = 4
+            t.transform.translation.x = coef*t.transform.translation.x-.6
+            t.transform.translation.y = coef*t.transform.translation.y
+            t.transform.translation.z = coef*t.transform.translation.z-2.4
+            t.header.frame_id = "panda_link0"
+        except: 
+            camera_frame = "internal_rgb_camera_link"
+            if self._sim:
+                camera_frame = "external_view"
+            t.child_frame_id = 'camera1'
+            t.header.frame_id = camera_frame
+            t.transform.rotation.w = 1
 
-        q_rot = quaternion_from_euler(0,0, 0,'rxyz')
-        q_new = quaternion_multiply(q_rot,q)
-        print q_new
-
-        trans = [4*v for v in trans]
-        self._br.sendTransform(trans,
-                    q_new,
-                    rospy.Time.now(),
-                    "camera1",
-                    "panda_link0")
+        t.child_frame_id = "camera1"
+        t.header.stamp = rospy.Time.now()
+        self._last_t = t
+        self._br.sendTransform(t)
 
     def run(self):
         r = rospy.Rate(100)
