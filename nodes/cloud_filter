@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+import numpy as np
+import math
+import rospy
+import signal
+#https://github.com/eric-wieser/ros_numpy
+import ros_numpy
+import sys
+from sensor_msgs.msg import PointCloud2
+from geometry_msgs.msg import PoseStamped
+from authoring_msgs.msg import POIArray
+import tf
+from tf.transformations import quaternion_from_euler
+from removeMeshes import PointCloudMeshFilter,MeshInstance
+
+REFERENCE_FRAME='panda_link0'
+CAMERA_FRAME='real_camera_frame'
+
+class Filter(object):
+    def __init__(self):
+        self._tl = tf.TransformListener()
+        rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
+        self._mesh_subtractor = PointCloudMeshFilter(['/home/senft/src/authoring-ros/meshes/screw2.stl'], ['screw'])
+        self._poi_sub = rospy.Subscriber("/pois", POIArray, self.on_poi, queue_size = 1)
+        self._cloud_sub = rospy.Subscriber("/points2", PointCloud2, self.on_cloud, queue_size = 1)
+        self._cloud_pub = rospy.Publisher("/filtered_cloud", PointCloud2, queue_size = 1)
+        self._pois = None
+        self._freq = 1
+        self._time_since_pub = rospy.Time.now()
+        print "ready"
+        self._lock=False
+
+    def on_poi(self, msg):
+        print "got pois"
+        self._pois = msg.poi_array
+        
+    def on_cloud(self, msg):
+        if (rospy.Time.now() - self._time_since_pub).to_sec() < 1/self._freq:
+            return
+        print "preparing"
+        if self._pois != None:
+            print "with pois"
+            cloud = ros_numpy.numpify(msg)
+
+            for p in self._pois:
+                p.pose = self._tl.transformPose(CAMERA_FRAME, p.pose)
+                #Modifying by reference
+                self.filter(cloud,p)
+
+            msg = ros_numpy.msgify(PoitCloud2, cloud)
+        self._cloud_pub.publish(msg)
+        self._time_since_pub = rospy.Time.now()
+
+    def get_vect(self, v):
+        toreturn = []
+        try:
+            toreturn.append(v.x)
+            toreturn.append(v.y)
+            toreturn.append(v.z)
+            toreturn.append(v.w)
+        except:
+            pass
+        return toreturn
+
+    def filter(self, cloud, p):
+        mesh = None
+        insts = []
+        if p.type == p.SCREW:
+            pose = p.pose.pose
+            rot = np.array(tf.transformations.quaternion_matrix(self.get_vect(pose.orientation))[:3,:3])
+            print rot.dtype
+            pos =  np.array(self.get_vect(pose.position))
+            print pos.dtype
+            insts.append(MeshInstance('screw', pos,rot))
+        self._mesh_subtractor.setMeshInstances(insts)
+        mask = self._mesh_subtractor(cloud)
+        cloud = cloud[mask]
+        print "filtered"
+        return cloud
+
+        if mesh is None:
+            return
+        else:
+            #Do Stuff
+            pass
+
+
+    def run(self):
+        rospy.spin()
+
+    def signal_handler(self, signal, frame):
+        sys.exit()
+
+if __name__ == "__main__":
+    rospy.init_node('cloud_filter')
+    f = Filter()
+    signal.signal(signal.SIGINT, f.signal_handler)
+    f.run()
