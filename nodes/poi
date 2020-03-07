@@ -46,7 +46,7 @@ class Poi(object):
                 poi.type = poi.HOLE
                 self._array.poi_array.append(poi)
         off_x=-.14
-        off_y=.40
+        off_y=.30
         off_z=.003
         for i in range(12):
             poi = copy.deepcopy(poi_init)
@@ -63,16 +63,27 @@ class Poi(object):
         poi.pose.pose.position.z += .094
         self._array.poi_array.append(poi)
         self._pois_pub.publish(self._array)
+        for poi in self._array.poi_array:
+            t = TransformStamped()
+            t.header.frame_id = REFERENCE_FRAME
+            t.child_frame_id = self.get_name(poi)
+            t.transform.translation.x=poi.pose.pose.position.x
+            t.transform.translation.y=poi.pose.pose.position.y
+            t.transform.translation.z=poi.pose.pose.position.z
+            t.transform.rotation.x=poi.pose.pose.orientation.x
+            t.transform.rotation.y=poi.pose.pose.orientation.y
+            t.transform.rotation.z=poi.pose.pose.orientation.z
+            t.transform.rotation.w=poi.pose.pose.orientation.w
+            self._tf_array.append(t)
+
 
     def get_vect(self, v):
         toreturn = []
-        try:
-            toreturn.append(v.x)
-            toreturn.append(v.y)
-            toreturn.append(v.z)
+        toreturn.append(v.x)
+        toreturn.append(v.y)
+        toreturn.append(v.z)
+        if isinstance(v, Quaternion):
             toreturn.append(v.w)
-        except:
-            pass
         return toreturn
 
     def get_name(self, poi):
@@ -90,9 +101,7 @@ class Poi(object):
 
 
     def publish_pois(self):
-        for poi in self._array.poi_array:
-            pose = poi.pose.pose
-            self._br.sendTransform(self.get_vect(pose.position),self.get_vect(pose.orientation), rospy.Time.now(), self.get_name(poi), REFERENCE_FRAME)
+        self._br.sendTransform(self._tf_array)
         #self._poses_pub.publish(pose_array)
 
 
