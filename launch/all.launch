@@ -21,6 +21,11 @@
         <param name="transform" type="string" value="external_camera_transform" />
     </node>
 
+    <node pkg="authoring" type="static_publisher" name="go_camera_static_publisher">
+        <param name="file_name" type="string" value="transforms.yaml" />
+        <param name="transform" type="string" value="go_camera_transform" />
+    </node>
+
     <node pkg="authoring" type="static_publisher" name="external_view_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />
         <param name="transform" type="string" value="external_view_transform" />

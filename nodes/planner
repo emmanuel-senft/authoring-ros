@@ -67,6 +67,17 @@ class Planner(object):
             move.pose.pose.orientation = q
             self._plan.append(move)
 
+        if action.type == action.VIEW:
+            move = Action()
+            move.finished.data = False
+            #ADD Make it view
+            move.type = move.MOVE
+            #ADD Transform ee to camera to ref_pose
+            #And deal with orientation
+            move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
+            move.pose.pose.orientation = q
+            self._plan.append(move)
+
         if action.type == action.MOVE:
             move = Action()
             move.finished.data = False
