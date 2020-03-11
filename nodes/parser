@@ -40,12 +40,15 @@ class Parser(object):
         rospy.sleep(.5)
         self._pois = []
         self._poi_gui = ""
-        self._poi_sub = rospy.Subscriber("/pois", POIArray, self.on_poi, queue_size = 1)
+        self._poi_sub = rospy.Subscriber("/world_state/pois", POIArray, self.on_poi, queue_size = 1)
         self._command_sub = rospy.Subscriber("/gui/command", String, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("/event", String, self.on_event, queue_size = 1)
 
     def on_event(self, msg):
-        if msg.data == "motion_finished":
+        l = msg.data.split(";")
+        event = l[0]
+        
+        if event == "motion_finished" or event == "wait":
             self.publish_pois()
 
     def on_poi(self, msg):
@@ -305,7 +308,7 @@ class Parser(object):
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, "go_camera", rospy.Time(0)) 
-            action.type = action.VIEW
+            action.type = action.MOVE
             pose = self.get_pose_from_trans(trans,rot)
             action.poses.poses.append(pose) 
             cmd = Command()
@@ -313,6 +316,7 @@ class Parser(object):
             cmd.core_action.append(action)
             self._command_pub.publish(cmd)
             return
+
         if command_type == "reset_position":
             self._panda_command.publish(String("release"))
             action = Action()
@@ -324,6 +328,18 @@ class Parser(object):
             pose.position.z = 0.6
             pose.orientation.w = 1
             action.poses.poses.append(pose)
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
+
+        if command_type == "stop":
+            action = Action()
+            action.type = action.STOP
+            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
+            pose = self.get_pose_from_trans(trans,rot)
+            action.poses.poses.append(pose) 
             cmd = Command()
             cmd.type = cmd.EXEC
             cmd.core_action.append(action)
@@ -461,6 +477,10 @@ class Parser(object):
                 action.type = action.PLACE 
             if name == 'Move':
                 action.type = action.MOVE_OBJECT
+            if name == 'Inspect':
+                action.type = action.INSPECT
+            if name == 'Push':
+                action.type = action.PUSH
 
             #action.id = index
             actions.append(action)

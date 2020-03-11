@@ -23,21 +23,34 @@ class Planner(object):
         self._br = tf.TransformBroadcaster()
         rospy.sleep(2.5) # sleep a bit to make sure the TF cache is filled
         self._path_pub = rospy.Publisher("/planner/path", Path, queue_size=0)
-        self._vel_pub = rospy.Publisher("/planner/cart_vel", Twist, queue_size=5)
+        self._camera_pub = rospy.Publisher("/panda/camera_control", Bool, queue_size=0)
+        self._goal_pub = rospy.Publisher("/planner/goal_pose", PoseStamped, queue_size=5)
         self._command_sub = rospy.Subscriber("/parser/command", Command, self.on_command)
         self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
         self._command_pub = rospy.Publisher("/planner/command", String, queue_size=1)
+        self._sel_vec_pub = rospy.Publisher("/panda/selection_vector", Vector3, queue_size=1)
         self._force_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_force)
+        self._event_sub = rospy.Subscriber("/event", String, self.on_event)
+        
         self._plan = []
         self._running = False
-        self._vel_pub.publish(Twist())
         self._sim = False
+        self._skip = False
+        self._act = False
         self._integrator = Twist()
         self._freq = 100.
         self._force = Vector3()
+        self._inserting_factor = None
+        self._plan_z = None
 
     def on_force(self, msg):
         self._force = msg.force
+
+    def on_event(self, msg):
+        if msg.data == "act":
+            self._act = True
+        if msg.data == "skip":
+            self._skip = True
 
     def add_subaction(self, action):
         rot = tf.transformations.quaternion_from_euler(0,0,0)
@@ -45,6 +58,7 @@ class Planner(object):
         ref_pose.header = action.poses.header
         ref_pose.pose = action.poses.poses[0]
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
+
         if action.type == action.MOVE_OBJECT:
             a1 = Action()
             a1.type = a1.PICK
@@ -70,11 +84,13 @@ class Planner(object):
         if action.type == action.VIEW:
             move = Action()
             move.finished.data = False
-            #ADD Make it view
-            move.type = move.MOVE
-            #ADD Transform ee to camera to ref_pose
-            #And deal with orientation
+            move.type = move.VIEW
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
+            #Fix for non vertical objects
+            (trans,rot) = self._tl.lookupTransform("go_camera","camera1",rospy.Time(0))
+            move.pose.pose.position.x -= trans[0]
+            move.pose.pose.position.y -= trans[1]
+            move.pose.pose.position.z -= trans[2]
             move.pose.pose.orientation = q
             self._plan.append(move)
 
@@ -104,6 +120,33 @@ class Planner(object):
             self._plan.append(move_to)
             self._plan.append(grasp)
             self._plan.append(move_above)
+
+        if action.type == action.INSPECT:
+            print "inspect"
+            move_above = Action()
+            move_above.finished.data = False
+            move_above.type = move_above.VIEW
+            move_above.poses = copy.deepcopy(action.poses)
+            move_above.poses.poses[0].position.z += .35
+            move_above.item = action.item
+            self.add_subaction(move_above)
+            wait = Action()
+            wait.finished.data = False
+            wait.type = wait.WAIT
+            wait.item = action.item
+            self._plan.append(wait)
+            push = copy.deepcopy(action)
+            push.type = push.PUSH
+            self.add_subaction(push)
+        
+        if action.type == action.STOP:
+            print "stop"
+            move = Action()
+            move.finished.data = False
+            move.type = move.MOVE
+            move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
+            move.pose.pose.orientation = q
+            self._plan.append(move)
         
         if action.type == action.PLACE:
             print "place"
@@ -112,6 +155,33 @@ class Planner(object):
             move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
+            move_to = copy.deepcopy(move_above)
+            move_above.pose.pose.position.z+=.15
+            move_prepare = copy.deepcopy(move_above)
+            move_prepare.pose.pose.position.z-=.1
+            move_to.type = move_to.INSERT
+            move_to.pose.pose.position.z+=.02
+            move_safe = copy.deepcopy(move_above)
+            release = Action()
+            release.finished.data = False
+            release.type = release.RELEASE
+            release.item = action.item
+            self._plan.append(move_above)
+            self._plan.append(move_prepare)
+            self._plan.append(move_to)
+            self._plan.append(release)
+            self._plan.append(move_safe)
+
+        if action.type == action.PUSH:
+            print "Push"
+            grasp = Action()
+            grasp.finished.data = False
+            grasp.type = grasp.GRASP
+            grasp.item = String("none")
+            move_above = Action()
+            move_above.finished.data = False
+            move_above.type = move_above.MOVE
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.15
@@ -120,11 +190,12 @@ class Planner(object):
             release = Action()
             release.finished.data = False
             release.type = release.RELEASE
-            release.item = action.item
+            release.item = String("none")
             self._plan.append(move_above)
+            self._plan.append(grasp)
             self._plan.append(move_to)
-            self._plan.append(release)
             self._plan.append(move_safe)
+            self._plan.append(release)
         
         if action.type == action.SCREW:
             print "screw"
@@ -252,6 +323,10 @@ class Planner(object):
             return "Release"
         if action.type == action.MOVE_OBJECT:
             return "Move"
+        if action.type == action.VIEW:
+            return "View"
+        if action.type == action.INSPECT:
+            return "Inspect"
         return ""
 
     def on_command(self,msg):
@@ -276,17 +351,17 @@ class Planner(object):
     def run(self):
         r = rospy.Rate(self._freq)
         while not rospy.is_shutdown():
+            #t1 = rospy.Time.now()
             self.update_plan()
+            #print "time "+str((rospy.Time.now()-t1).to_sec())
             r.sleep()
 
     def next_sub_action(self):
         self._plan.pop(0)
-        self._vel_pub.publish(Twist())
         print len(self._plan)
 
 
     def update_plan(self):
-        print "in plan"
         self.display_path()
         if not self._running:
             return
@@ -298,15 +373,21 @@ class Planner(object):
             return
 
         current_action = self._plan[0]
-        print current_action
         if current_action.finished.data:
             self._event_pub.publish(String("action_finished;"+self.get_type(current_action)+":"+current_action.item.data))
             self.next_sub_action()
-        if current_action.type == current_action.MOVE:
-            if self.go_to_position(current_action.pose):
+            return
+        if current_action.type == current_action.MOVE or current_action.type == current_action.INSERT:
+            if self.go_to_position(current_action):
+                self.next_sub_action()
+                return
+        if current_action.type == current_action.VIEW:
+            self._camera_pub.publish(Bool(True))
+            if self.go_to_position(current_action):
+                self._camera_pub.publish(Bool(False))
                 self.next_sub_action()
         if current_action.type == current_action.MOVE_TO_CONTACT:
-            if self.go_to_position(current_action.pose, contact = True):
+            if self.go_to_position(current_action):
                 self.next_sub_action()
         if current_action.type == current_action.GRASP:
             if self.grasp():
@@ -316,6 +397,20 @@ class Planner(object):
             if self.release():
                 self._event_pub.publish(String("released;"+current_action.item.data))
                 self.next_sub_action()
+        if current_action.type == current_action.WAIT:
+            if self._skip:
+                print "skipping"
+                while not (self._plan[0].finished.data):
+                    print "removing"
+                    self._plan.pop(0)
+                print "done skipping"
+                self._skip = False
+                return
+            elif self._act:
+                self.next_sub_action()
+                self._act = False
+            else:
+                self._event_pub.publish(String("wait;"+current_action.item.data))
 
     def bound(self, val, b):
         return min(max(val,-b),b)
@@ -326,14 +421,35 @@ class Planner(object):
         except:
             return [val.x, val.y, val.z]
 
-    def go_to_position(self, goal, contact = False):
+    def insert(self, goal, dz):
+        print "inserting"
+        if self._inserting_factor == None:
+            self._plan_z = dz
+            v = Vector3(1,1,0)
+            self._sel_vec_pub.publish(v)
+            self._inserting_factor = 0
+        else:
+            self._inserting_factor += 1
+        
+        n_turns = 10
+        time = 10.
+        sample_points = time*self._freq
+        max_d = .005
+        d_x = self._inserting_factor * np.cos(n_turns*2*np.pi*self._inserting_factor/sample_points)*max_d/sample_points
+        d_y = self._inserting_factor * np.sin(n_turns*2*np.pi*self._inserting_factor/sample_points)*max_d/sample_points
+
+        goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.050)
+        goal.pose.position.x+=d_x
+        goal.pose.position.y+=d_y
+        self._goal_pub.publish(goal)        
+
+    def go_to_position(self, action):
+        goal = copy.deepcopy(action.pose)
         self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "current_goal",REFERENCE_FRAME)
         try:
             ee_frame = ('sim_' if self._sim else '') + 'end_effector'
-            print ee_frame
             (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         except:
-            print("fail")
             return
         pose = Pose()
         pose.position.x = goal.pose.position.x-trans[0]
@@ -357,59 +473,56 @@ class Planner(object):
         if d < -np.pi:
             angle[2] += 2 * np.pi 
 
-        threshold = .005
-        force_threshold = 20.
+        threshold = .002
+        force_threshold = 10.
         dx = math.fabs(pose.position.x)
         dy = math.fabs(pose.position.y)
         dz = math.fabs(pose.position.z)
 
-        if dx < threshold and dy < threshold and (dz <threshold or (contact and np.fabs(self._force.z) > force_threshold)) and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
-            print "arrived sub point"
-            return True
-        else:
-            twist = Twist()
-            max_vel = .10
-            P_lin=8 if not contact else 2
-            P_rot=8
-            I=0.000
-            if dx < 5 * threshold and dx > threshold/2 and pose.position.x*self._integrator.linear.x >= 0:
-                print "filling x"
-                self._integrator.linear.x += pose.position.x
+        if self._inserting_factor is not None:
+            if (np.fabs(self._plan_z-dz)>threshold or dz<threshold):
+                print "found hole"
+                self._inserting_factor = None
+                v = Vector3(1,1,1)
+                self._sel_vec_pub.publish(v)
+                return True
             else:
-                self._integrator.linear.x = 0
-            print "new"
-            print dx
-            if dy < 5 * threshold and dy > threshold/2 and pose.position.y*self._integrator.linear.y >= 0:
-                print "filling y"
-                self._integrator.linear.y += pose.position.y
-            else:
-                self._integrator.linear.y = 0
-            print dy
-            if dz < 5 * threshold and dz > threshold/2 and pose.position.z*self._integrator.linear.z >= 0:
-                print "filling z"
-                self._integrator.linear.z += pose.position.z
-            else:
-                self._integrator.linear.z = 0
-            print dz
+                self.insert(goal,dz)
+                return False
 
-            twist.linear.x=self.bound(P_lin*pose.position.x+I*self._integrator.linear.x,max_vel)
-            twist.linear.y=self.bound(P_lin*pose.position.y+I*self._integrator.linear.y,max_vel)
-            twist.linear.z=self.bound(P_lin*pose.position.z+I*self._integrator.linear.z,max_vel)
+        if dx < threshold and dy < threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
+            if dz < threshold:
+                print "arrived sub point"
+                goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.01)
+                self._goal_pub.publish(goal)
+                return True
+            if np.fabs(self._force.z) > force_threshold:
+                if action.type == action.MOVE_TO_CONTACT:
+                    print "found contact"
+                    goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.01)
+                    self._goal_pub.publish(goal)
+                    return True
+                if action.type == action.INSERT:
+                    print np.fabs(self._force.z)
+                    self.insert(goal,dz)
+                    return False
+        max_lin = .15
+        if action.type == action.MOVE_TO_CONTACT or action.type == action.INSERT:
+            max_lin = .05
+        max_rot = .6
 
-            print self._integrator.linear.z
-
-            twist.angular.x=self.bound(P_rot*angle[0],6*max_vel)
-            twist.angular.y=self.bound(P_rot*angle[1],6*max_vel)
-            twist.angular.z=self.bound(P_rot*angle[2],6*max_vel)
-            self._vel_pub.publish(twist)
+        d = np.sqrt(dx**2+dy**2+dz**2)
+        t_lin = d / max_lin
+        t_rot = max([angle[0]/max_rot,angle[1]/max_rot,angle[2]/max_rot])
+    
+        goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(max(t_lin,t_rot))
+        self._goal_pub.publish(goal)
         return False
 
     def normalise_angle(self, angle):
         return [(a+np.pi)%(2*np.pi)-np.pi for a in angle]
 
     def grasp(self):
-        v = Twist()
-        self._vel_pub.publish(v)
         cmd = String()
         cmd.data = "grasp"
         self._command_pub.publish(cmd)
@@ -417,8 +530,6 @@ class Planner(object):
         return True
 
     def release(self):
-        v = Twist()
-        self._vel_pub.publish(v)
         cmd = String()
         cmd.data = "release"
         self._command_pub.publish(cmd)
@@ -440,18 +551,17 @@ class Planner(object):
         EE_pose.pose.orientation.w = rot[3]
         EE_pose.header.frame_id = REFERENCE_FRAME
         path.poses = [EE_pose]
-        print len(self._plan)
         for action in self._plan:
-            print action.type
-            if (action.type == action.MOVE or action.type == action.MOVE_TO_CONTACT) and not action.finished.data:
+            if (action.type == action.MOVE or action.type == action.VIEW or action.type == action.MOVE_TO_CONTACT or action.type == action.INSERT) and not action.finished.data:
                 path.poses.append(action.pose)
+            else:
+                pass
         self._path_pub.publish(path)
 
  
 
     def signal_handler(self, signal, frame):
         #publish empty path
-        self._vel_pub.publish(Twist())
         sys.exit(0)
 
 if __name__ == "__main__":

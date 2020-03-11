@@ -64,10 +64,19 @@ class Tracker(object):
             print "grasping "+self._grasped_object
         if event[0] == "released":
             self._grasped_object = None
-        if event[0] == "motion_finished" and self._sim:
-            self._sim = False
-            self._estimated_pois = copy.deepcopy(self._sim_pois)
+        if event[0] == "motion_finished":
+            if self._sim:
+                self._sim = False
+                self._sim_pois = copy.deepcopy(self._estimated_pois)
+            else:
+                self._estimated_pois = copy.deepcopy(self._sim_pois)
             
+            self.publish_pois()
+
+    def publish_pois(self):
+        msg = POIArray()
+        msg.poi_array = copy.copy(self._estimated_pois)
+        self._poi_pub.publish(msg)
            
     def get_pose_from_trans(self, t):
         pose = Pose()
@@ -80,23 +89,18 @@ class Tracker(object):
         pose.orientation.w = t.transform.rotation.w
         return pose
 
-    def publish_state(self):
+    def publish_meshes(self):
         if self._sim_pois is None:
             return
         for p in self._sim_pois:
             if self.get_name(p) == self._grasped_object:
                 print "grasped"
-                t = self._tfBuffer.lookupTransform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
+                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
                 p.pose.header = REFERENCE_FRAME
                 p.pose.pose = self.get_pose_from_trans(t)
                 
             if p.type == p.SCREW:
                 self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
-
-        msg = POIArray()
-        msg.poi_array = copy.copy(self._estimated_pois)
-        self._poi_pub.publish(msg)
-
 
     #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
     def get_color(self, string, alpha):
@@ -142,7 +146,7 @@ class Tracker(object):
     def run(self):
         r = rospy.Rate(100)
         while not rospy.is_shutdown():
-            self.publish_state()
+            self.publish_meshes()
             r.sleep()
 
     def signal_handler(self, signal, frame):

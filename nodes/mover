@@ -6,7 +6,7 @@ import math
 import tf
 import PyKDL
 
-from geometry_msgs.msg import Twist,Pose,PoseStamped
+from geometry_msgs.msg import Twist, Pose, PoseStamped
 from std_msgs.msg import String
 from nav_msgs.msg import Path
 from relaxed_ik.msg  import EEPoseGoals,JointAngles
@@ -25,7 +25,7 @@ class Mover(object):
         self._r_ik = rospy.get_param('~use_relaxed_ik')
         if not self._r_ik:
             self._sim_vel_pub = rospy.Publisher("/mover/cart_vel",Twist,queue_size=5)
-        self._panda_vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=5)
+        self._panda_path_pub = rospy.Publisher("/panda/path",Path,queue_size=5)
 
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
 
@@ -39,7 +39,7 @@ class Mover(object):
         self._freq = 100.
 
         if not self._r_ik:
-            self._twist_sub = rospy.Subscriber("/planner/cart_vel",Twist, self.on_velocity)
+            self._twist_sub = rospy.Subscriber("/planner/goal_pose",PoseStamped, self.on_goal)
         self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command)
         self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=1)
         self._event_sub = rospy.Subscriber("/event",String, self.on_event)
@@ -59,12 +59,49 @@ class Mover(object):
         if cmd == "start_exec":
             self._sim = False
             self._exec = True
+        if cmd  == "wait":
+            vel = Twist()
+            self._sim_vel_pub.publish(vel)
  
-    def on_velocity(self, msg):
+    def on_goal(self, msg):
         if self._exec and not self._r_ik:
-            self._panda_vel_pub.publish(msg)
+            path = Path()
+            path.poses.append(msg)
+            self._panda_path_pub.publish(path)
         if self._sim:
-            self._sim_vel_pub.publish(msg)
+            ee_frame = 'sim_end_effector'
+            (trans,rot) = self._tl.lookupTransform("panda_link0", ee_frame, rospy.Time(0))
+            d_t = (msg.header.stamp - rospy.Time.now()).to_sec()
+            pose = Pose()
+            pose.position.x = msg.pose.position.x-trans[0]
+            pose.position.y = msg.pose.position.y-trans[1]
+            pose.position.z = msg.pose.position.z-trans[2]
+            
+            #From https://answers.ros.org/question/10124/relative-rotation-between-two-quaternions/
+
+            qp = PyKDL.Rotation.Quaternion(rot[0],rot[1],rot[2],rot[3])
+            current_angle = qp.GetRPY()
+
+            rot = msg.pose.orientation
+            qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+            q = qg*qp.Inverse()
+
+            difference_angle = q.GetRPY()
+            angle  = list(difference_angle)
+            d = current_angle[2] + difference_angle[2]
+            if d > np.pi:
+                angle[2] -= 2 * np.pi
+            if d < -np.pi:
+                angle[2] += 2 * np.pi 
+
+            vel = Twist()
+            vel.linear.x = pose.position.x/d_t
+            vel.linear.y = pose.position.y/d_t
+            vel.linear.z = pose.position.z/d_t
+            vel.angular.x = pose.orientation.x/d_t
+            vel.angular.y = pose.orientation.y/d_t
+            vel.angular.z = pose.orientation.z/d_t
+            self._sim_vel_pub.publish(vel)
     
 #    def on_solution(self, msg):
 #        if not self._sim and self._exec:
@@ -78,6 +115,9 @@ class Mover(object):
         if commands[0] == "sim":
             self._sim = True
             self._exec = False
+        if commands[0] == "grasp" or commands[0] == "release":
+            vel = Twist()
+            self._sim_vel_pub.publish(vel)
         if self._exec:
             self._command_pub.publish(msg)
         
@@ -89,4 +129,3 @@ if __name__ == "__main__":
     mover = Mover()
     signal.signal(signal.SIGINT, mover.signal_handler)
     mover.run()
-

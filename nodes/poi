@@ -23,9 +23,9 @@ class Poi(object):
     def init_pois(self):
         #POI1
         poi_init = POI()
-        poi_init.pose.pose.position.x=.463
-        poi_init.pose.pose.position.y=-.277
-        poi_init.pose.pose.position.z=.063
+        poi_init.pose.pose.position.x=.555
+        poi_init.pose.pose.position.y=-.252
+        poi_init.pose.pose.position.z=.065
         poi_init.pose.pose.orientation.w=1
         poi_init.pose.header.frame_id = REFERENCE_FRAME
         poi_init.type = poi_init.SCREW
@@ -34,6 +34,7 @@ class Poi(object):
         for i in range(4):
             poi = copy.deepcopy(poi_init)
             poi.pose.pose.position.x+=(i+1)*0.0375
+            poi.pose.pose.position.y-=(i+1)*0.001
             poi.id = i+1
             self._array.poi_array.append(poi)
         for i in range(5):
@@ -46,13 +47,13 @@ class Poi(object):
                 poi.type = poi.HOLE
                 self._array.poi_array.append(poi)
         off_x=-.14
-        off_y=.30
-        off_z=.003
+        off_y=.50
+        off_z=-.003
         for i in range(12):
             poi = copy.deepcopy(poi_init)
             poi.pose.pose.position.x += off_x + .0825*np.cos(i*np.pi/6)
             poi.pose.pose.position.y += off_y + .0825*np.sin(i*np.pi/6)
-            poi.pose.pose.position.z += .003
+            poi.pose.pose.position.z += off_z
             poi.id = i
             poi.type = poi.PUSHER
             self._array.poi_array.append(poi)
