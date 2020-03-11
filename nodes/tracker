@@ -6,7 +6,7 @@ import signal
 import sys
 from std_msgs.msg import String, ColorRGBA
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion, Twist
+from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion, Twist, TransformStamped
 from authoring_msgs.msg import Action, Command, POI, POIArray
 import tf
 import tf2_ros
@@ -36,6 +36,7 @@ class Tracker(object):
         self._sim = False
 
         self._cmd = None
+        self._tf_array = []
 
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
@@ -51,6 +52,7 @@ class Tracker(object):
             self._init_pois.append(p)
         self._sim_pois = copy.deepcopy(self._init_pois)
         self._estimated_pois = copy.deepcopy(self._sim_pois)
+        self.publish_pois()
 
     def on_command(self, msg):
         self._cmd = msg
@@ -74,6 +76,21 @@ class Tracker(object):
             self.publish_pois()
 
     def publish_pois(self):
+        self._tf_array = []
+        print "N pois"
+        print len(self._estimated_pois)
+        for poi in self._estimated_pois:
+            t = TransformStamped()
+            t.header.frame_id = REFERENCE_FRAME
+            t.child_frame_id = self.get_name(poi)
+            t.transform.translation.x=poi.pose.pose.position.x
+            t.transform.translation.y=poi.pose.pose.position.y
+            t.transform.translation.z=poi.pose.pose.position.z
+            t.transform.rotation.x=poi.pose.pose.orientation.x
+            t.transform.rotation.y=poi.pose.pose.orientation.y
+            t.transform.rotation.z=poi.pose.pose.orientation.z
+            t.transform.rotation.w=poi.pose.pose.orientation.w
+            self._tf_array.append(t)
         msg = POIArray()
         msg.poi_array = copy.copy(self._estimated_pois)
         self._poi_pub.publish(msg)
@@ -96,11 +113,13 @@ class Tracker(object):
             if self.get_name(p) == self._grasped_object:
                 print "grasped"
                 t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
-                p.pose.header = REFERENCE_FRAME
+                p.pose.header.frame_id = REFERENCE_FRAME
                 p.pose.pose = self.get_pose_from_trans(t)
                 
             if p.type == p.SCREW:
                 self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
+
+        self._br.sendTransform(self._tf_array)
 
     #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
     def get_color(self, string, alpha):

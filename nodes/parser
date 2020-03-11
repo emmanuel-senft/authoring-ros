@@ -52,6 +52,7 @@ class Parser(object):
             self.publish_pois()
 
     def on_poi(self, msg):
+        self._pois = []
         for p in msg.poi_array:
             p.pose = self._tl.transformPose(REFERENCE_FRAME, p.pose)
             self._pois.append(p)

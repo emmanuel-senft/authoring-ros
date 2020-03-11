@@ -267,14 +267,16 @@ class Planner(object):
             for i in range(int(n+1)):
                 p_l.append(self.point_toward(p0,p3,i/n))
                 p_r.append(self.point_toward(p1,p2,i/n))
-            move = Action()
-            move.type = move.MOVE_TO_CONTACT
-            move.finished.data = False
+            base_move = Action()
+            base_move.type = base_move.MOVE_FORCE
+            base_move.finished.data = False
             for i in range(int(n)):
-                move = copy.deepcopy(move)
+                move = copy.deepcopy(base_move)
+                if i == 0:
+                    move.type = move.MOVE_TO_CONTACT
                 move.pose = p_l[i] if not i%2 else p_r[i]
                 self._plan.append(move)
-                move = copy.deepcopy(move)
+                move = copy.deepcopy(base_move)
                 move.pose = p_r[i] if not i%2 else p_l[i]
                 self._plan.append(move)
 
@@ -282,6 +284,11 @@ class Planner(object):
             move_above.pose = copy.deepcopy(move.pose)
             move_above.pose.pose.position.z += .10
             self._plan.append(move_above)
+            release = Action()
+            release.finished.data = False
+            release.type = release.RELEASE
+            release.item = String("none")
+            self._plan.append(release)
 
 
 
@@ -327,10 +334,13 @@ class Planner(object):
             return "View"
         if action.type == action.INSPECT:
             return "Inspect"
+        if action.type == action.MOVE_FORCE:
+            return "Move force"
         return ""
 
     def on_command(self,msg):
         print "new command"
+        self._sel_vec_pub.publish(Vector3(1,1,1))
         self._plan = []
         current_action_id = 0
         self._type = msg.type
@@ -358,6 +368,11 @@ class Planner(object):
 
     def next_sub_action(self):
         self._plan.pop(0)
+        if len(self._plan)>0 and self._plan[0].type == self._plan[0].MOVE_FORCE:
+            self._sel_vec_pub.publish(Vector3(1,1,0))
+        else: 
+            self._sel_vec_pub.publish(Vector3(1,1,1))
+
         print len(self._plan)
 
 
@@ -373,11 +388,12 @@ class Planner(object):
             return
 
         current_action = self._plan[0]
+        print self.get_type(current_action)
         if current_action.finished.data:
             self._event_pub.publish(String("action_finished;"+self.get_type(current_action)+":"+current_action.item.data))
             self.next_sub_action()
             return
-        if current_action.type == current_action.MOVE or current_action.type == current_action.INSERT:
+        if current_action.type == current_action.MOVE or current_action.type == current_action.INSERT or current_action.type == current_action.MOVE_FORCE:
             if self.go_to_position(current_action):
                 self.next_sub_action()
                 return
@@ -474,7 +490,7 @@ class Planner(object):
             angle[2] += 2 * np.pi 
 
         threshold = .002
-        force_threshold = 10.
+        force_threshold = 4.
         dx = math.fabs(pose.position.x)
         dy = math.fabs(pose.position.y)
         dz = math.fabs(pose.position.z)
@@ -497,7 +513,7 @@ class Planner(object):
                 self._goal_pub.publish(goal)
                 return True
             if np.fabs(self._force.z) > force_threshold:
-                if action.type == action.MOVE_TO_CONTACT:
+                if (action.type == action.MOVE_TO_CONTACT or action.type == action.MOVE_FORCE):
                     print "found contact"
                     goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.01)
                     self._goal_pub.publish(goal)
@@ -506,12 +522,16 @@ class Planner(object):
                     print np.fabs(self._force.z)
                     self.insert(goal,dz)
                     return False
-        max_lin = .15
+        max_lin = .12
         if action.type == action.MOVE_TO_CONTACT or action.type == action.INSERT:
             max_lin = .05
         max_rot = .6
 
         d = np.sqrt(dx**2+dy**2+dz**2)
+
+        if action.type == action.MOVE_FORCE:
+            d = np.sqrt(dx**2+dy**2)
+
         t_lin = d / max_lin
         t_rot = max([angle[0]/max_rot,angle[1]/max_rot,angle[2]/max_rot])
     
@@ -552,7 +572,7 @@ class Planner(object):
         EE_pose.header.frame_id = REFERENCE_FRAME
         path.poses = [EE_pose]
         for action in self._plan:
-            if (action.type == action.MOVE or action.type == action.VIEW or action.type == action.MOVE_TO_CONTACT or action.type == action.INSERT) and not action.finished.data:
+            if (action.type == action.MOVE or action.type == action.MOVE_FORCE or action.type == action.VIEW or action.type == action.MOVE_TO_CONTACT or action.type == action.INSERT) and not action.finished.data:
                 path.poses.append(action.pose)
             else:
                 pass

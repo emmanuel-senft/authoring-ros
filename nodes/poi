@@ -64,19 +64,6 @@ class Poi(object):
         poi.pose.pose.position.z += .094
         self._array.poi_array.append(poi)
         self._pois_pub.publish(self._array)
-        for poi in self._array.poi_array:
-            t = TransformStamped()
-            t.header.frame_id = REFERENCE_FRAME
-            t.child_frame_id = self.get_name(poi)
-            t.transform.translation.x=poi.pose.pose.position.x
-            t.transform.translation.y=poi.pose.pose.position.y
-            t.transform.translation.z=poi.pose.pose.position.z
-            t.transform.rotation.x=poi.pose.pose.orientation.x
-            t.transform.rotation.y=poi.pose.pose.orientation.y
-            t.transform.rotation.z=poi.pose.pose.orientation.z
-            t.transform.rotation.w=poi.pose.pose.orientation.w
-            self._tf_array.append(t)
-
 
     def get_vect(self, v):
         toreturn = []
@@ -107,10 +94,7 @@ class Poi(object):
 
 
     def run(self):
-        r = rospy.Rate(100)
-        while not rospy.is_shutdown():
-            self.publish_pois()
-            r.sleep()
+        rospy.spin()
 
     def signal_handler(self, signal, frame):
         sys.exit()
