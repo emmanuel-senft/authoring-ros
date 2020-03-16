@@ -51,9 +51,13 @@ class VirtualCamera(object):
         self._command_sub = rospy.Subscriber("/gui/command",String, self.on_command)
         self._sim = False
         self._camera_t = None
+        self._flying = False
 
 
     def on_event(self, msg):
+        if msg.data == "start_exec":
+            self._moving = True
+            self._flying = False
         if msg.data == "start_sim":
             self._moving = True
             self._sim = True
@@ -67,56 +71,63 @@ class VirtualCamera(object):
         if msg.data == "motion_finished":
             self._sim = False
             self._moving = False
+
     def on_command(self, msg):
         if msg.data == "lock":
             self._locked = True
+            self._flying = False
+            self._last_t = self._tfBuffer.lookup_transform("panda_link0","camera1", rospy.Time(0))
+            self.publish_camera_pose()
+
         if msg.data == "unlock":
             self._locked = False
+            self._flying = True
+            self.default_camera()
+        if msg.data == "init_gui":
+            self._flying = False
+
             
     def publish_camera_pose(self):
-        if self._sim:
-            self._camera_t.header.stamp = rospy.Time.now()
-            self._br.sendTransform(self._camera_t)
-        else:
-            try:
-                camera_frame = "external_" if self._use_external_camera else "internal_"
-                camera_frame += "camera_base"
-                t = self._tfBuffer.lookup_transform("panda_link0","camera_base", rospy.Time(0))
-                t.child_frame_id = camera_frame
-                t.header.stamp = rospy.Time.now()
-                self._camera_t = t
-                self._br.sendTransform(self._camera_t)
-            except:
-                pass
-
         if self._moving or self._locked:
             self._last_t.header.stamp = rospy.Time.now()
             self._br.sendTransform(self._last_t)
             return
 
-        t = TransformStamped()
-        try:
-            t = self._tfBuffer.lookup_transform("inv_tag_2","client_camera", rospy.Time(0))
-            coef = 4
-            t.transform.translation.x = coef*t.transform.translation.x-.6
-            t.transform.translation.y = coef*t.transform.translation.y
-            t.transform.translation.z = coef*t.transform.translation.z-2.4
-            t.header.frame_id = "panda_link0"
-        except: 
-            camera_frame = "internal_rgb_camera_link"
-            if self._sim:
-                camera_frame = "external_view"
-            t.child_frame_id = 'camera1'
-            t.header.frame_id = camera_frame
-            t.transform.rotation.w = 1
+        if self._flying:
+            try:
+                t = self._tfBuffer.lookup_transform("inv_tag_2","client_camera", rospy.Time(0))
+                coef = 4
+                t.transform.translation.x = coef*t.transform.translation.x-.6
+                t.transform.translation.y = coef*t.transform.translation.y
+                t.transform.translation.z = coef*t.transform.translation.z-2.4
+                t.header.frame_id = "panda_link0"
+                t.child_frame_id = "camera1"
+                t.header.stamp = rospy.Time.now()
+                self._last_t = t
+                self._br.sendTransform(t)
+            except: 
+                print "Tag not found"
+                self._last_t.header.stamp = rospy.Time.now()
+                self._br.sendTransform(self._last_t)
+                return
 
+        self.default_camera()
+
+    def default_camera(self):
+        #Default behavior: internal camera or external if view
+        t = TransformStamped()
+        camera_frame = "internal_rgb_camera_link"
+        if self._sim:
+            camera_frame = "external_view"
+        t.header.frame_id = camera_frame
+        t.transform.rotation.w = 1
         t.child_frame_id = "camera1"
         t.header.stamp = rospy.Time.now()
         self._last_t = t
         self._br.sendTransform(t)
 
     def run(self):
-        r = rospy.Rate(100)
+        r = rospy.Rate(10)
         while not rospy.is_shutdown():
             self.publish_camera_pose()
             r.sleep()
