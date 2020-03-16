@@ -19,19 +19,29 @@ from authoring_msgs.msg import Action, Command, POI, POIArray
 import tf
 import copy
 from tf.transformations import quaternion_from_euler
+import tf2_ros
+import tf2_geometry_msgs
 
 REFERENCE_FRAME='panda_link0'
 CAMERA_FRAME='camera1'
 
 class Parser(object):
     def __init__(self):
-        self._tl = tf.TransformListener()
+        self._tfBuffer = tf2_ros.Buffer()
+        self._tl = tf2_ros.TransformListener(self._tfBuffer)
         rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
         self._pose_pub = rospy.Publisher("/grasping_point",PoseStamped,queue_size=1)
         self._command_pub = rospy.Publisher("/parser/command", Command, queue_size=1)
         self._marker_pub = rospy.Publisher("/gui/markers", Marker, queue_size=1)
+
+        self._virtual = rospy.get_param('~only_virtual')
+        self._camera_topic = "/rgb/" if not self._virtual else "/virtual_camera/"
+
+        print self._camera_topic+"camera_info"
+
         self._model = image_geometry.PinholeCameraModel()
-        self._model.fromCameraInfo(rospy.wait_for_message("rgb/camera_info", CameraInfo))
+        self._model.fromCameraInfo(rospy.wait_for_message(self._camera_topic+"camera_info", CameraInfo))
+
         self._gui_pub = rospy.Publisher("/parser/gui_info",String,queue_size=1)
         self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=1)
         self._panda_command = rospy.Publisher("/panda/commands",String, queue_size=1)
@@ -43,6 +53,9 @@ class Parser(object):
         self._poi_sub = rospy.Subscriber("/world_state/pois", POIArray, self.on_poi, queue_size = 1)
         self._command_sub = rospy.Subscriber("/gui/command", String, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("/event", String, self.on_event, queue_size = 1)
+        
+        self._camera_t = None
+        self._freq = 1
 
     def on_event(self, msg):
         l = msg.data.split(";")
@@ -54,7 +67,6 @@ class Parser(object):
     def on_poi(self, msg):
         self._pois = []
         for p in msg.poi_array:
-            p.pose = self._tl.transformPose(REFERENCE_FRAME, p.pose)
             self._pois.append(p)
         self.publish_pois()
 
@@ -110,7 +122,7 @@ class Parser(object):
         return point
     
     def get_pixel_from_pose(self, pose):
-        p = self._tl.transformPose(CAMERA_FRAME,pose)
+        p = self._tfBuffer.transform(pose,CAMERA_FRAME)
         p = p.pose.position
         p=[p.x,p.y,p.z]
         pixel = self._model.project3dToPixel(p)
@@ -128,7 +140,7 @@ class Parser(object):
         pose.pose.position=point
         pose.pose.orientation.w=1
         pose.header.frame_id=CAMERA_FRAME
-        pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+        pose = self._tfBuffer.transform(pose,REFERENCE_FRAME)
         q = tf.transformations.quaternion_from_euler(math.pi,0,0)
         pose.pose.orientation.x=q[0]
         pose.pose.orientation.y=q[1]
@@ -278,15 +290,15 @@ class Parser(object):
             points.append(point)
         return points
 
-    def get_pose_from_trans(self, trans, rot):
+    def get_pose_from_trans(self, t):
         pose = Pose()
-        pose.position.x = trans[0]
-        pose.position.y = trans[1]
-        pose.position.z = trans[2]
-        pose.orientation.x = rot[0]
-        pose.orientation.y = rot[1]
-        pose.orientation.z = rot[2]
-        pose.orientation.w = rot[3]
+        pose.position.x = t.transform.translation.x
+        pose.position.y = t.transform.translation.y
+        pose.position.z = t.transform.translation.z
+        pose.orientation.x = t.transform.rotation.x
+        pose.orientation.y = t.transform.rotation.y
+        pose.orientation.z = t.transform.rotation.z
+        pose.orientation.w = t.transform.rotation.w
         return pose
 
 
@@ -308,9 +320,9 @@ class Parser(object):
         if command_type == "go":
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
-            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, "go_camera", rospy.Time(0)) 
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "go_camera", rospy.Time(0)) 
             action.type = action.MOVE
-            pose = self.get_pose_from_trans(trans,rot)
+            pose = self.get_pose_from_trans(t)
             action.poses.poses.append(pose) 
             cmd = Command()
             cmd.type = cmd.EXEC
@@ -319,6 +331,7 @@ class Parser(object):
             return
 
         if command_type == "reset_position":
+            print "here"
             self._panda_command.publish(String("release"))
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
@@ -338,8 +351,9 @@ class Parser(object):
         if command_type == "stop":
             action = Action()
             action.type = action.STOP
-            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
-            pose = self.get_pose_from_trans(trans,rot)
+            action.poses.header.frame_id = REFERENCE_FRAME
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
+            pose = self.get_pose_from_trans(t)
             action.poses.poses.append(pose) 
             cmd = Command()
             cmd.type = cmd.EXEC
@@ -363,7 +377,8 @@ class Parser(object):
         actions = []
 
         list_actions.pop(0)
-        image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image))
+        if not self._virtual:
+            image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image))
 
         for action in list_actions:
             cmd = action.split(":")
@@ -385,17 +400,17 @@ class Parser(object):
     
             elif cmd[0] == "Move":
                 action.item = String(cmd[1])
-                (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1].split('-')[0], rospy.Time(0)) 
-                pose = self.get_pose_from_trans(trans,rot)
+                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[0], rospy.Time(0)) 
+                pose = self.get_pose_from_trans(t)
                 action.poses.poses.append(pose)
-                (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1].split('-')[1], rospy.Time(0)) 
-                pose = self.get_pose_from_trans(trans,rot)
+                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[1], rospy.Time(0)) 
+                pose = self.get_pose_from_trans(t)
                 action.poses.poses.append(pose)
                 
             elif cmd[1].find(",") == -1:
-                (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cmd[1], rospy.Time(0)) 
+                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1], rospy.Time(0)) 
                 action.item = String(cmd[1])
-                pose = self.get_pose_from_trans(trans,rot)
+                pose = self.get_pose_from_trans(t)
                 action.poses.poses.append(pose)
 
             #get item pixel coord
@@ -416,7 +431,7 @@ class Parser(object):
                     pose.header.frame_id = CAMERA_FRAME
                     pose.pose.position = p
                     pose.pose.orientation.w = 1
-                    pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+                    pose = self._tfBuffer.transform(pose,REFERENCE_FRAME)
                     pose.pose.orientation.x = 0
                     pose.pose.orientation.y = 0
                     pose.pose.orientation.z = 0
@@ -502,7 +517,10 @@ class Parser(object):
 
 
     def run(self):
-        rospy.spin()
+        r = rospy.Rate(self._freq)
+        while not rospy.is_shutdown():
+            self.publish_pois()
+            r.sleep()
 
     def signal_handler(self, signal, frame):
         sys.exit()
