@@ -25,7 +25,7 @@ class Tracker(object):
         self._br = tf2_ros.TransformBroadcaster()
         rospy.sleep(.5)
 
-        self._poi_pub = rospy.Publisher("/world_state/pois", POIArray, queue_size=1)
+        self._poi_pub = rospy.Publisher("/world_state/pois", POIArray, queue_size=1, latch=True)
         self._marker_pub = rospy.Publisher("/viz/meshes", Marker, queue_size=1)
 
         self._init_pois = None
@@ -111,7 +111,6 @@ class Tracker(object):
             return
         for p in self._sim_pois:
             if self.get_name(p) == self._grasped_object:
-                print "grasped"
                 t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
                 p.pose.header.frame_id = REFERENCE_FRAME
                 p.pose.pose = self.get_pose_from_trans(t)
@@ -163,7 +162,7 @@ class Tracker(object):
         self._marker_pub.publish(marker)
 
     def run(self):
-        r = rospy.Rate(100)
+        r = rospy.Rate(20)
         while not rospy.is_shutdown():
             self.publish_meshes()
             r.sleep()

@@ -46,6 +46,7 @@ class Simulator(object):
 
         #Publish init state for the robot
         self.init_states()
+        self._init = False
 
     def init_states(self):
         joint = JointState()
@@ -65,7 +66,7 @@ class Simulator(object):
             r.sleep()
 
     def move(self):
-        if self._sim:
+        if self._sim or not self._init:
             for i,v in enumerate(self._current_velocity):
                 self._current_joint[i]+=v/self._freq
             joint = JointState()
@@ -78,6 +79,7 @@ class Simulator(object):
             for i,v in enumerate(self._current_velocity):
                 desired_joint[i]+=80*v/self._freq
             joint = JointAngles()
+            joint.header.stamp = rospy.Time.now()
             joint.angles.data = list(desired_joint)
             self._panda_pub.publish(joint)
 
@@ -97,11 +99,11 @@ class Simulator(object):
             print "sim"
             if msg.data == "grasp":
                 self._finger_val = 0.0
-                print self._finger_val
             if msg.data == "release":
                 self._finger_val = .035
 
     def on_state(self, msg):
+        self._init = True
         if not self._sim:
             self._viz_pub.publish(msg)
             self._finger_val = msg.position[7]

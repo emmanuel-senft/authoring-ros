@@ -336,6 +336,8 @@ class Planner(object):
             return "Inspect"
         if action.type == action.MOVE_FORCE:
             return "Move force"
+        if action.type == action.INSERT:
+            return "Insert"
         return ""
 
     def on_command(self,msg):
@@ -367,7 +369,8 @@ class Planner(object):
             r.sleep()
 
     def next_sub_action(self):
-        self._plan.pop(0)
+        if len(self._plan)>0 :
+            self._plan.pop(0)
         if len(self._plan)>0 and self._plan[0].type == self._plan[0].MOVE_FORCE:
             self._sel_vec_pub.publish(Vector3(1,1,0))
         else: 

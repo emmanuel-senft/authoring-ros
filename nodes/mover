@@ -54,6 +54,7 @@ class Mover(object):
         if cmd == "motion_finished":
             self._sim = False
             self._exec = False
+            self._sim_vel_pub.publish(Twist())
         if cmd == "start_sim":
             self._sim = True
             self._exec = False
