@@ -150,7 +150,7 @@ class Tracker(object):
         marker = Marker()
         marker.header.frame_id = REFERENCE_FRAME
         marker.pose = copy.deepcopy(pose)
-        marker.pose.position.z-=.043
+        marker.pose.position.z-=.053
         marker.ns = name
         marker.id = i
         scale = 1
