@@ -1,23 +1,25 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="use_relaxed_ik" default="false"/>
-    <node pkg="authoring" type="parser" name="parser"/>
-    <node pkg="authoring" type="planner" name="planner"/>
+    <arg name="only_virtual" default="true"/>
+    <node pkg="authoring" type="planner" name="planner" output="screen"/>
     <node pkg="authoring" type="poi" name="poi"/>
     <node pkg="authoring" type="tracker" name="tracker" output="screen"/>
+
     <node pkg="authoring" type="mover" name="mover" output="screen">
         <param name="use_relaxed_ik" type="bool" value="$(arg use_relaxed_ik)" />
+        <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
     </node>
-    <node pkg="authoring" type="simulator" name="simulator" output="screen">
-        <param name="use_relaxed_ik" type="bool" value="$(arg use_relaxed_ik)" />
+
+    <node pkg="authoring" type="parser" name="parser" output="screen">
+        <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
     </node>
+
     <group if="$(arg use_relaxed_ik)">
         <node pkg="relaxed_ik" type="relaxed_ik_rust.py" name="relaxed_ik_node"/>
         <node pkg="authoring" type="r_ik_wrapper" name="r_ik_wrapper"/>        
     </group>
     <group unless="$(arg use_relaxed_ik)">
         <node pkg="authoring" type="pandaJacob" name="pandaJacob"/>
-        <include file="$(find authoring)/launch/space_mouse.launch"/>
     </group>
-
 </launch>

@@ -7,7 +7,6 @@ Panels:
         - /Global Options1
         - /RobotModel1
         - /TF1
-        - /TF1/Status1
         - /TF1/Frames1
         - /TF1/Tree1
         - /Marker1
@@ -71,6 +70,26 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        camera_base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_body:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_visor:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ft_sensor_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         panda_hand:
           Alpha: 1
           Show Axes: false
@@ -137,57 +156,25 @@ Visualization Manager:
       Value: true
       Visual Enabled: true
     - Class: rviz/TF
-      Enabled: true
+      Enabled: false
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        camera1:
-          Value: true
-        camera_base:
-          Value: true
-        depth_camera_link:
-          Value: true
-        imu_link:
-          Value: true
-        panda_hand:
-          Value: true
-        panda_link0:
-          Value: true
-        panda_link7:
-          Value: true
-        panda_link8:
-          Value: true
-        rel_ik_zero:
-          Value: true
-        rgb_camera_link:
-          Value: true
-        sim_end_effector:
-          Value: true
       Marker Scale: 0.20000000298023224
       Name: TF
       Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
-        camera_base:
-          depth_camera_link:
-            imu_link:
-              {}
-            rgb_camera_link:
-              {}
-          panda_link0:
-            camera1:
-              {}
-            rel_ik_zero:
-              {}
+        {}
       Update Interval: 0
-      Value: true
+      Value: false
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /gui/markers
+      Marker Topic: /viz/meshes
       Name: Marker
       Namespaces:
-        {}
+        screw: true
       Queue Size: 100
       Value: true
     - Class: rviz/InteractiveMarkers
@@ -243,7 +230,7 @@ Visualization Manager:
       Class: rviz_camera_stream/CameraPub
       Display namespace: /
       Enabled: true
-      Frame Rate: -1
+      Frame Rate: 1
       Image Encoding: rgb8
       Image Topic: /virtual_camera/image
       Name: CameraPub
@@ -285,7 +272,7 @@ Visualization Manager:
       Size (Pixels): 5
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /points2
+      Topic: /static_points2
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -318,25 +305,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 0.45480847358703613
+      Distance: 2.048218011856079
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.5407347679138184
-        Y: -0.17296713590621948
-        Z: -0.012110440991818905
+        X: 0.4785686731338501
+        Y: -0.0016117835184559226
+        Z: 0.30965712666511536
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6897972226142883
+      Pitch: 0.674797773361206
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.875831127166748
+      Yaw: 5.675834655761719
     Saved: ~
 Window Geometry:
   Displays:

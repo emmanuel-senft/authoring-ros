@@ -23,6 +23,7 @@ class Mover(object):
 
         #self._goal_pub = rospy.Publisher("/relaxed_ik/ee_pose_goals", EEPoseGoals, queue_size=1)
         self._r_ik = rospy.get_param('~use_relaxed_ik')
+        self._virtual = rospy.get_param('~only_virtual')
         if not self._r_ik:
             self._sim_vel_pub = rospy.Publisher("/mover/cart_vel",Twist,queue_size=5)
         self._panda_path_pub = rospy.Publisher("/panda/path",Path,queue_size=5)
@@ -68,7 +69,7 @@ class Mover(object):
             path = Path()
             path.poses.append(msg)
             self._panda_path_pub.publish(path)
-        if self._sim:
+        if self._sim or (self._exec and self._virtual):
             ee_frame = 'sim_end_effector'
             (trans,rot) = self._tl.lookupTransform("panda_link0", ee_frame, rospy.Time(0))
             d_t = (msg.header.stamp - rospy.Time.now()).to_sec()

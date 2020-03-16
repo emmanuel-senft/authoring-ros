@@ -242,13 +242,6 @@
     <limit effort="20" lower="0.0" upper="0.04" velocity="0.2"/>
     <mimic joint="panda_finger_joint1"/>
   </joint>
-  <link name="end_effector"/>
-  <joint name="end_effector" type="fixed">
-    <origin rpy="-0.000 0.000 -0.785" xyz="-0.000 -0.000 0.103"/>
-    <parent link="panda_link8"/>
-    <child link="end_effector"/>
-    <axis xyz="0 0 0"/>
-  </joint>
   <material name="black">
     <color rgba="0. 0. 0. 1"/>
   </material>
@@ -294,7 +287,7 @@
     <!--<origin xyz="-0.032 0.038 0.031" rpy="-2.731 -1.517 -1.209" />-->
     <!--<origin xyz="-0.052 -0.008 -0.071" rpy="-1.553 -0.582 -1.587" />-->
     <!--<origin xyz="0.032 -0.064 0.053" rpy="-0.389 -1.554 2.542" />-->
-    <origin rpy="-1.586 0.010 -1.585" xyz="0.156 -0.052 -0.005"/>
+    <origin rpy="-1.586 0.010 -1.585" xyz="0.156 -0.041 0.00"/>
   </joint>
   <joint name="camera_base_to_body" type="fixed">
     <parent link="camera_base"/>

@@ -1,26 +1,24 @@
 <?xml version="1.0"?>
 <launch>
-    <arg name="detect_camera" default="false"/>
-    <arg name="detect_jungle" default="false"/>
     <arg name="rgb_point_cloud" default="false"/>
     <arg name="with_utils" default="false"/>
-    <arg name="use_relaxed_ik" default="false"/>
-    <arg name="use_virtual_camera" default="true"/>
-    <arg name="use_external_kinect" default="false"/>
-    <arg name="use_internal_kinect" default="true"/>
+    <arg name="use_static_cloud" default="false"/>
+    <arg name="use_real_kinect" default="false"/>
+    <arg name="only_virtual" default="true"/>
 
-    <group if="$(arg detect_camera)">
-        <include file="$(find authoring)/launch/detect.launch">  
-            <arg name="default_marker_size" default="106"/>
-        </include>
-        <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0.0504 -.085 -0.005 .707106781 0.707106781 0 0 tag_4 panda_link0 100" /> 
+    <group if="$(arg use_static_cloud)">
+        <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
+            <param name="file_name" type="string" value="transforms.yaml" />
+            <param name="transform" type="string" value="static_cloud_transform" />
+        </node>
+
+        <node pkg="authoring" type="pc_publish" name="pc_publish"/>
     </group>
 
-    <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
-        <param name="file_name" type="string" value="transforms.yaml" />
-        <param name="transform" type="string" value="external_camera_transform" />
+    <node pkg="authoring" type="simulator" name="simulator" output="screen">
+        <param name="use_relaxed_ik" type="bool" value="false" />
     </node>
-
+    
     <node pkg="authoring" type="static_publisher" name="go_camera_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />
         <param name="transform" type="string" value="go_camera_transform" />
@@ -31,55 +29,53 @@
         <param name="transform" type="string" value="external_view_transform" />
     </node>
 
-    <group if="$(arg use_internal_kinect)">
+    <group if="$(arg only_virtual)">
+        <node pkg="authoring" type="static_publisher" name="end_effector_static_publisher">
+            <param name="file_name" type="string" value="transforms.yaml" />
+            <param name="transform" type="string" value="sim_robot_transform" />
+        </node>
+    </group>
+
+    <group if="$(arg use_real_kinect)">
         <include file="$(find authoring)/launch/kinect.launch">
             <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
             <arg name="tf_prefix" default="internal_"/>
         </include>
+
+        <node pkg="authoring" type="static_publisher" name="rgb_camera_static_publisher">
+            <param name="file_name" type="string" value="transforms.yaml" />
+            <param name="transform" type="string" value="rgb_camera_transform" />
+        </node>
     </group>
 
-    <group if="$(arg use_external_kinect)">
-        <include file="$(find authoring)/launch/kinect.launch">
-            <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
-            <arg name="tf_prefix" default="external_"/>
-        </include>
+    <group unless="$(arg use_real_kinect)">
+        <node pkg="authoring" type="static_publisher" name="rgb_camera_static_publisher">
+            <param name="file_name" type="string" value="transforms.yaml" />
+            <param name="transform" type="string" value="fake_camera_transform" />
+        </node>
+
+        <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
+            <param name="file_name" type="string" value="transforms.yaml" />
+            <param name="transform" type="string" value="static_cloud_transform" />
+        </node>
+
+        <node pkg="authoring" type="pc_publish" name="pc_publish"/>
     </group>
 
     <include file="$(find authoring)/launch/joint_state_pub.launch"/>  
 
     <group if="$(arg with_utils)">
         <include file="$(find authoring)/launch/utils.launch">  
-            <arg name="use_relaxed_ik" default="$(arg use_relaxed_ik)"/>
+            <arg name="use_relaxed_ik" default="false"/>
+            <arg name="only_virtual" default="$(arg only_virtual)"/>
         </include>
     </group>
 
-    <group if="$(arg use_virtual_camera)">
-        <include file="$(find authoring)/launch/virtual_camera.launch">  
-        </include>
-    </group>
+    <include file="$(find authoring)/launch/virtual_camera.launch">  
+    </include>
 
-    <group unless="$(arg use_virtual_camera)">
-        <node
-            pkg="image_transport"
-            type="republish"
-            name="republish_image"
-            args="raw in:=/rgb/image_raw
-                  compressed out:=/gui/display/image">
-        </node>
-    </group>
     <node pkg="authoring" type="static_publisher" name="sim_ee_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />
         <param name="transform" type="string" value="sim_ee_transform" />
     </node>
-
-    <node pkg="authoring" type="static_publisher" name="rgb_camera_static_publisher">
-        <param name="file_name" type="string" value="transforms.yaml" />
-        <param name="transform" type="string" value="rgb_camera_transform" />
-    </node>
-
-   <node pkg="authoring" type="static_publisher" name="rel_ik_static_publisher">
-        <param name="file_name" type="string" value="transforms.yaml" />
-        <param name="transform" type="string" value="relaxed_ik_transform" />
-    </node>
-
 </launch>

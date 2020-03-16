@@ -102,7 +102,7 @@ catkin_install_python(PROGRAMS
     nodes/r_ik_wrapper
     nodes/space_mouse
     nodes/virtual_camera_manager
-    nodes/camera_switcher
+    nodes/pc_publish
     nodes/tracker
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 

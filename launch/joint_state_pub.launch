@@ -1,16 +1,18 @@
 <?xml version="1.0"?>
 <launch>
    
-   <!-- startup rviz -->
-   <node pkg="rviz" type="rviz" name="rviz" args="-d $(find authoring)/rviz/joint_viewer.rviz" />
+    <!-- startup rviz -->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find authoring)/rviz/joint_viewer.rviz" />
 
-    <param name="publish_frequency" type="double" value="100.0" />
+    <param name="publish_frequency" type="double" value="1000.0" />
     <param name="tf_prefix" type="string" value="" />
     <param name="robot_description" command="cat $(find authoring)/urdfs/panda.urdf" />
-   <!-- Robot state publisher    -->
-    <node pkg="robot_state_publisher" type="robot_state_publisher" name="panda_state_publisher">
+   
+    <!-- Robot state publisher    -->
+    <arg name="node_start_delay" default="1.0" />  
+    <node pkg="robot_state_publisher" type="robot_state_publisher" name="panda_state_publisher" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " output="screen">
     <remap from="joint_states" to="/viz/joint_states"/>
-        <param name="publish_frequency" type="double" value="500.0" />
+        <param name="publish_frequency" type="double" value="1000.0" />
     </node>
 
 
