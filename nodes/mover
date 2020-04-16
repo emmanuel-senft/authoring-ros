@@ -38,6 +38,7 @@ class Mover(object):
         self._exec = False
         self._target_vel = None
         self._freq = 100.
+        self._last_pose = None
 
         if not self._r_ik:
             self._twist_sub = rospy.Subscriber("/planner/goal_pose",PoseStamped, self.on_goal)
@@ -66,10 +67,6 @@ class Mover(object):
             self._sim_vel_pub.publish(vel)
  
     def on_goal(self, msg):
-        if self._exec and not self._r_ik:
-            path = Path()
-            path.poses.append(msg)
-            self._panda_path_pub.publish(path)
         if self._sim or (self._exec and self._virtual):
             ee_frame = 'sim_end_effector'
             (trans,rot) = self._tl.lookupTransform("panda_link0", ee_frame, rospy.Time(0))
@@ -104,6 +101,14 @@ class Mover(object):
             vel.angular.y = pose.orientation.y/d_t
             vel.angular.z = pose.orientation.z/d_t
             self._sim_vel_pub.publish(vel)
+            return
+        if self._exec and not self._r_ik:
+            if msg.pose == self._last_pose:
+                return
+            path = Path()
+            path.poses.append(msg)
+            self._last_pose = msg.pose
+            self._panda_path_pub.publish(path)
     
 #    def on_solution(self, msg):
 #        if not self._sim and self._exec:

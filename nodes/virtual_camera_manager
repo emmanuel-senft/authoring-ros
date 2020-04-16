@@ -52,6 +52,7 @@ class VirtualCamera(object):
         self._sim = False
         self._camera_t = None
         self._flying = False
+        self._real_camera_t = None
 
 
     def on_event(self, msg):
@@ -59,6 +60,7 @@ class VirtualCamera(object):
             self._moving = True
             self._flying = False
         if msg.data == "start_sim":
+            self._real_camera_t = self._tfBuffer.lookup_transform("panda_link0","internal_camera_base", rospy.Time(0))
             self._moving = True
             self._sim = True
             if not self._locked:
@@ -88,12 +90,26 @@ class VirtualCamera(object):
 
             
     def publish_camera_pose(self):
+        if self._sim:
+            #print "use real"
+            #print self._real_camera_t 
+            self._real_camera_t.header.stamp = rospy.Time.now()
+            self._br.sendTransform(self._real_camera_t)
+        else:
+            t = TransformStamped()
+            t.transform.rotation.w = 1
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "camera_base"
+            t.child_frame_id = "internal_camera_base"
+            self._br.sendTransform(t)
         if self._moving or self._locked:
+            #print "publishing last"
             self._last_t.header.stamp = rospy.Time.now()
             self._br.sendTransform(self._last_t)
             return
 
         if self._flying:
+            print "Free flying"
             try:
                 t = self._tfBuffer.lookup_transform("inv_tag_2","client_camera", rospy.Time(0))
                 coef = 4
@@ -105,6 +121,7 @@ class VirtualCamera(object):
                 t.header.stamp = rospy.Time.now()
                 self._last_t = t
                 self._br.sendTransform(t)
+                return
             except: 
                 print "Tag not found"
                 self._last_t.header.stamp = rospy.Time.now()
