@@ -52,7 +52,7 @@ class Planner(object):
         if msg.data == "skip":
             self._skip = True
 
-    def add_subaction(self, action):
+    def add_subaction(self, action,sub_action = False):
         rot = tf.transformations.quaternion_from_euler(0,0,0)
         ref_pose = PoseStamped()
         ref_pose.header = action.poses.header
@@ -65,13 +65,13 @@ class Planner(object):
             a1.item = String(action.item.data.split('-')[0])
             a1.poses.header = action.poses.header
             a1.poses.poses.append(action.poses.poses[0])
-            self.add_subaction(a1)
+            self.add_subaction(a1,sub_action=True)
             a2 = Action()
             a2.type = a2.PLACE
             a2.item = a1.item
             a2.poses.header = action.poses.header
             a2.poses.poses.append(action.poses.poses[1])
-            self.add_subaction(a2)
+            self.add_subaction(a2,sub_action=True)
 
         if action.type == action.RESET:
             move = Action()
@@ -129,15 +129,12 @@ class Planner(object):
             move_above.poses = copy.deepcopy(action.poses)
             move_above.poses.poses[0].position.z += .35
             move_above.item = action.item
-            self.add_subaction(move_above)
+            self.add_subaction(move_above,sub_action=True)
             wait = Action()
             wait.finished.data = False
             wait.type = wait.WAIT
             wait.item = action.item
             self._plan.append(wait)
-            push = copy.deepcopy(action)
-            push.type = push.PUSH
-            self.add_subaction(push)
         
         if action.type == action.STOP:
             print "stop"
@@ -290,10 +287,9 @@ class Planner(object):
             release.item = String("none")
             self._plan.append(release)
 
-
-
-        action.finished.data = True
-        self._plan.append(action)
+        if not sub_action:
+            action.finished.data = True
+            self._plan.append(action)
 
     def point_toward(self, p0, p1, ratio):
         p = PoseStamped()
@@ -336,6 +332,8 @@ class Planner(object):
             return "Inspect"
         if action.type == action.MOVE_FORCE:
             return "Move force"
+        if action.type == action.PUSH:
+            return "Push"
         if action.type == action.INSERT:
             return "Insert"
         return ""
@@ -370,14 +368,21 @@ class Planner(object):
 
     def next_sub_action(self):
         if len(self._plan)>0 :
+            if self._plan[0].MOVE_FORCE:
+                self._sel_vec_pub.publish(Vector3(1,1,1))
             self._plan.pop(0)
-        if len(self._plan)>0 and self._plan[0].type == self._plan[0].MOVE_FORCE:
+        
+        if len(self._plan) == 0:
+            return
+
+        current_action = self._plan[0]
+        if current_action.type == current_action.WAIT:
+            self._event_pub.publish(String("wait;"+current_action.item.data))
+
+        if current_action.type == self._plan[0].MOVE_FORCE:
             self._sel_vec_pub.publish(Vector3(1,1,0))
-        else: 
-            self._sel_vec_pub.publish(Vector3(1,1,1))
 
         print len(self._plan)
-
 
     def update_plan(self):
         self.display_path()
@@ -429,7 +434,8 @@ class Planner(object):
                 self.next_sub_action()
                 self._act = False
             else:
-                self._event_pub.publish(String("wait;"+current_action.item.data))
+                pass
+                #self._event_pub.publish(String("wait;"+current_action.item.data))
 
     def bound(self, val, b):
         return min(max(val,-b),b)

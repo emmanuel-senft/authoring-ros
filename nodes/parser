@@ -337,9 +337,9 @@ class Parser(object):
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = action.RESET
             pose = Pose()
-            pose.position.x = 0.18
+            pose.position.x = 0.25
             pose.position.y = 0.
-            pose.position.z = 0.6
+            pose.position.z = 0.5
             pose.orientation.w = 1
             action.poses.poses.append(pose)
             cmd = Command()
@@ -392,26 +392,31 @@ class Parser(object):
                 action.type = action.RESET
                 action.poses.header.frame_id = REFERENCE_FRAME
                 pose = Pose()
-                pose.position.x = 0.18
+                pose.position.x = 0.25
                 pose.position.y = 0.
-                pose.position.z = 0.6
+                pose.position.z = 0.5
                 pose.orientation.w = 1
                 action.poses.poses.append(pose)
     
-            elif cmd[0] == "Move":
-                action.item = String(cmd[1])
-                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[0], rospy.Time(0)) 
-                pose = self.get_pose_from_trans(t)
-                action.poses.poses.append(pose)
-                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[1], rospy.Time(0)) 
-                pose = self.get_pose_from_trans(t)
-                action.poses.poses.append(pose)
+            #elif cmd[0] == "Move":
+            #    action.item = String(cmd[1])
+            #    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[0], rospy.Time(0)) 
+            #    pose = self.get_pose_from_trans(t)
+            #    action.poses.poses.append(pose)
+            #    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[1], rospy.Time(0)) 
+            #    pose = self.get_pose_from_trans(t)
+            #    action.poses.poses.append(pose)
                 
             elif cmd[1].find(",") == -1:
-                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1], rospy.Time(0)) 
-                action.item = String(cmd[1])
-                pose = self.get_pose_from_trans(t)
-                action.poses.poses.append(pose)
+                item_list = cmd[1].split('-')
+                if cmd[0] == "Move":
+                    action.item = String(cmd[1])
+                else:
+                    action.item = String(item_list[0])
+                for item in item_list:
+                    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item, rospy.Time(0)) 
+                    pose = self.get_pose_from_trans(t)
+                    action.poses.poses.append(pose)
 
             #get item pixel coord
             else:
