@@ -424,6 +424,10 @@ class Planner(object):
         if current_action.type == current_action.WAIT:
             if self._skip:
                 print "skipping"
+                #Finishing skipping action
+                self._plan.pop(0)
+                self._plan.pop(0)
+                #Removing next action
                 while not (self._plan[0].finished.data):
                     print "removing"
                     self._plan.pop(0)
@@ -431,6 +435,7 @@ class Planner(object):
                 self._skip = False
                 return
             elif self._act:
+                self._plan.pop(0)
                 self.next_sub_action()
                 self._act = False
             else:

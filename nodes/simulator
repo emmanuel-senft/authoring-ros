@@ -36,6 +36,7 @@ class Simulator(object):
         self._init = False
         self._finger_val = .035
         self._current_joint = [0.0,-0.4,0.0,-2.0,0.0,1.6,0.8,self._finger_val,self._finger_val]
+        self._pre_sim_joints = copy.deepcopy(self._current_joint)
         self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
         self._freq = 200
         self._vel_sub = rospy.Subscriber(joint_topic, JointAngles, self.on_vel);
@@ -87,9 +88,18 @@ class Simulator(object):
     def on_event(self, msg):
         cmd = msg.data.split(";")[0]
         if cmd == "motion_finished":
-            self._sim = False
+            if self._sim:
+                joint = JointState()
+                joint.header.stamp = rospy.Time.now()
+                joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
+                self._current_joint = self._pre_sim_joints
+                joint.position = list(self._current_joint)
+                self._viz_pub.publish(joint)
+                self._sim = False
         if cmd == "start_sim":
-            self._sim = True
+            if not self._sim:
+                self._pre_sim_joints = copy.deepcopy(self._current_joint)
+                self._sim = True
         if cmd == "start_exec":
             self._sim = False
     
