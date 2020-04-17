@@ -309,12 +309,27 @@ class Parser(object):
             self.publish_pois()
         if command_type == 'mouse':
             arg = list_actions[1].split(":")
-            twist = Twist()
-            twist.linear.x = int(arg[0])/3000.
-            twist.linear.y = int(arg[1])/3000.
-            twist.linear.z = int(arg[2])/3000.
-            twist.angular.z = int(arg[3])/3000.
-            self._vel_pub.publish(twist)
+            scale = .001
+            target = PoseStamped()
+            target.header.frame_id = "internal_rgb_camera_link"
+            target.pose.position.x = float(arg[0])*scale
+            target.pose.position.y = float(arg[1])*scale
+            target.pose.orientation.w = 1
+            target = self._tfBuffer.transform(target,REFERENCE_FRAME)
+            print target
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
+            t_camera = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "internal_rgb_camera_link", rospy.Time(0)) 
+            t.transform.translation.x += target.pose.position.x - t_camera.transform.translation.x
+            t.transform.translation.y += target.pose.position.y - t_camera.transform.translation.y
+            action = Action()
+            action.poses.header.frame_id = REFERENCE_FRAME
+            action.type = action.MOVE
+            pose = self.get_pose_from_trans(t)
+            action.poses.poses.append(pose) 
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
             return
 
         if command_type == "go":
