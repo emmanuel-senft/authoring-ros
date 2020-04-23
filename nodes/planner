@@ -209,33 +209,73 @@ class Planner(object):
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.15
-            move_to.pose.pose.position.z+=.13
+            move_above.pose.pose.position.z+=.1
+            move_to.pose.pose.position.z-=.000
 
-            plus_high = copy.deepcopy(move_above)
-            plus_high.pose.pose.orientation = q_plus
-            minus_high = copy.deepcopy(move_above)
-            minus_high.pose.pose.orientation = q_minus
+            grasp = Action()
+            grasp.finished.data = False
+            grasp.type = grasp.GRASP
+            grasp.item = action.item
 
-            plus_low = copy.deepcopy(move_to)
-            plus_low.pose.pose.orientation = q_plus
-            minus_low = copy.deepcopy(move_to)
-            minus_low.pose.pose.orientation = q_minus
-            plus_low2 = copy.deepcopy(plus_low)
-            plus_low2.pose.pose.position.z-=.003
+            release = copy.deepcopy(grasp)
+            release.type = release.RELEASE
 
-            minus_low2 = copy.deepcopy(minus_low)
-            minus_low2.pose.pose.position.z-=.003
+            plus = copy.deepcopy(move_to)
+            plus.pose.pose.orientation = q_plus
+            minus = copy.deepcopy(move_to)
+            minus.pose.pose.orientation = q_minus
 
             self._plan.append(move_above)
-            self._plan.append(minus_high)
-            self._plan.append(minus_low)
-            self._plan.append(plus_low)
-            self._plan.append(plus_high)
-            self._plan.append(minus_high)
-            self._plan.append(minus_low2)
-            self._plan.append(plus_low2)
-            self._plan.append(plus_high)
+            self._plan.append(minus)
+            self._plan.append(grasp)
+            self._plan.append(plus)
+            self._plan.append(release)
+            self._plan.append(minus)
+            self._plan.append(grasp)
+            self._plan.append(plus)
+            self._plan.append(release)
+            self._plan.append(move_above)
+        
+        if action.type == action.UNSCREW:
+            print "unscrew"
+            #angle = 3*np.pi/5.
+            angle = np.pi/2.
+            rot = tf.transformations.quaternion_from_euler(0,0,-angle)
+            q_plus = Quaternion(rot[0],rot[1],rot[2],rot[3])
+            rot = tf.transformations.quaternion_from_euler(0,0,angle)
+            q_minus = Quaternion(rot[0],rot[1],rot[2],rot[3])
+ 
+            move_above = Action()
+            move_above.finished.data = False
+            move_above.type = move_above.MOVE
+            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
+            move_above.pose.pose.orientation = q
+            move_to = copy.deepcopy(move_above)
+            move_above.pose.pose.position.z+=.1
+            move_to.pose.pose.position.z-=.00
+
+            grasp = Action()
+            grasp.finished.data = False
+            grasp.type = grasp.GRASP
+            grasp.item = action.item
+
+            release = copy.deepcopy(grasp)
+            release.type = release.RELEASE
+
+            plus = copy.deepcopy(move_to)
+            plus.pose.pose.orientation = q_plus
+            minus = copy.deepcopy(move_to)
+            minus.pose.pose.orientation = q_minus
+
+            self._plan.append(move_above)
+            self._plan.append(plus)
+            self._plan.append(grasp)
+            self._plan.append(minus)
+            self._plan.append(release)
+            self._plan.append(plus)
+            self._plan.append(grasp)
+            self._plan.append(minus)
+            self._plan.append(release)
             self._plan.append(move_above)
 
         if action.type == action.WIPE:
@@ -311,7 +351,9 @@ class Planner(object):
         if action.type == action.PICK:
             return "Pick"
         if action.type == action.SCREW:
-            return "Screw"
+            return "Tighten"
+        if action.type == action.UNSCREW:
+            return "Loosen"
         if action.type == action.PLACE:
             return "Place"
         if action.type == action.WIPE:
