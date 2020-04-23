@@ -436,6 +436,7 @@ class Parser(object):
         if not self._virtual:
             image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image))
 
+        moved = {}
         for action in list_actions:
             cmd = action.split(":")
         
@@ -465,14 +466,18 @@ class Parser(object):
                 
             elif cmd[1].find(",") == -1:
                 item_list = cmd[1].split('-')
+                for item in item_list:
+                    if item in moved.keys():
+                        action.poses.poses.append(moved[item])
+                    else:
+                        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item, rospy.Time(0)) 
+                        pose = self.get_pose_from_trans(t)
+                        action.poses.poses.append(pose)
                 if cmd[0] == "Move":
                     action.item = String(cmd[1])
+                    moved[item_list[0]]=action.poses.poses[-1]
                 else:
                     action.item = String(item_list[0])
-                for item in item_list:
-                    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item, rospy.Time(0)) 
-                    pose = self.get_pose_from_trans(t)
-                    action.poses.poses.append(pose)
 
             #get item pixel coord
             else:
