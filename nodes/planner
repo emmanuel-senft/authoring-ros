@@ -197,7 +197,7 @@ class Planner(object):
         if action.type == action.SCREW:
             print "screw"
             #angle = 3*np.pi/5.
-            angle = 1.2*np.pi/2.
+            angle = np.pi/2.
             rot = tf.transformations.quaternion_from_euler(0,0,-angle)
             q_plus = Quaternion(rot[0],rot[1],rot[2],rot[3])
             rot = tf.transformations.quaternion_from_euler(0,0,angle)
@@ -547,7 +547,7 @@ class Planner(object):
             d = np.sqrt(dx**2+dy**2)
 
         t_lin = d / max_lin
-        t_rot = max([angle[0]/max_rot,angle[1]/max_rot,angle[2]/max_rot])
+        t_rot = max([np.fabs(angle[0])/max_rot,np.fabs(angle[1])/max_rot,np.fabs(angle[2])/max_rot])
     
         goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(max(t_lin,t_rot))
         self._goal_pub.publish(goal)

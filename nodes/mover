@@ -97,9 +97,10 @@ class Mover(object):
             vel.linear.x = pose.position.x/d_t
             vel.linear.y = pose.position.y/d_t
             vel.linear.z = pose.position.z/d_t
-            vel.angular.x = pose.orientation.x/d_t
-            vel.angular.y = pose.orientation.y/d_t
-            vel.angular.z = pose.orientation.z/d_t
+            vel.angular.x = angle[0]/d_t
+            vel.angular.y = angle[1]/d_t
+            vel.angular.z = angle[2]/d_t
+            
             self._sim_vel_pub.publish(vel)
             return
         if self._exec and not self._r_ik:
