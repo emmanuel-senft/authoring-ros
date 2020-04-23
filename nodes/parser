@@ -332,6 +332,34 @@ class Parser(object):
             self._command_pub.publish(cmd)
             return
 
+        if command_type == 'zoom_in':
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
+            t.transform.translation.z -= .05
+            action = Action()
+            action.poses.header.frame_id = REFERENCE_FRAME
+            action.type = action.MOVE
+            pose = self.get_pose_from_trans(t)
+            action.poses.poses.append(pose) 
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
+
+        if command_type == 'zoom_out':
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
+            t.transform.translation.z += .05
+            action = Action()
+            action.poses.header.frame_id = REFERENCE_FRAME
+            action.type = action.MOVE
+            pose = self.get_pose_from_trans(t)
+            action.poses.poses.append(pose) 
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
+
         if command_type == "go":
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
