@@ -113,7 +113,9 @@ class Planner(object):
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.1
-            move_to.pose.pose.position.z -= .008
+            if not sub_action:
+                move_above.pose.pose.position.z+=.1
+            move_to.pose.pose.position.z -= .003
             grasp = Action()
             grasp.finished.data = False
             grasp.type = grasp.GRASP
@@ -159,7 +161,7 @@ class Planner(object):
             move_prepare = copy.deepcopy(move_above)
             move_prepare.pose.pose.position.z-=.05
             move_to.type = move_to.INSERT
-            move_to.pose.pose.position.z+=.01
+            move_to.pose.pose.position.z-=.00
             move_safe = copy.deepcopy(move_above)
             release = Action()
             release.finished.data = False
@@ -212,7 +214,7 @@ class Planner(object):
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.1
-            move_to.pose.pose.position.z-=.000
+            move_to.pose.pose.position.z+=.005
 
             grasp = Action()
             grasp.finished.data = False
@@ -223,6 +225,7 @@ class Planner(object):
             release.type = release.RELEASE
 
             plus = copy.deepcopy(move_to)
+            plus.pose.pose.position.z-=.002
             plus.pose.pose.orientation = q_plus
             minus = copy.deepcopy(move_to)
             minus.pose.pose.orientation = q_minus
@@ -268,6 +271,7 @@ class Planner(object):
             plus.pose.pose.orientation = q_plus
             minus = copy.deepcopy(move_to)
             minus.pose.pose.orientation = q_minus
+            minus.pose.pose.position.z+=.002
 
             plan.append(move_above)
             plan.append(plus)

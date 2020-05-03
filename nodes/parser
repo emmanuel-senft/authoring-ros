@@ -476,6 +476,7 @@ class Parser(object):
                 if cmd[0] == "Move":
                     action.item = String(cmd[1])
                     moved[item_list[0]]=action.poses.poses[-1]
+                    moved[item_list[0]].position.z+=.015
                 else:
                     action.item = String(item_list[0])
 
