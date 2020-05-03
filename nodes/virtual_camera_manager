@@ -54,11 +54,21 @@ class VirtualCamera(object):
         self._flying = False
         self._real_camera_t = None
 
+        self._pre_exec_t = None
+        self._editing = False
+
 
     def on_event(self, msg):
+        if msg.data == "start_edit":
+            self._last_t = self._pre_exec_t
+            self.publish_camera_pose()
+        if msg.data == "stop_edit":
+            self.default_camera()
         if msg.data == "start_exec":
             self._moving = True
             self._flying = False
+            self._pre_exec_t = self._tfBuffer.lookup_transform("panda_link0","camera1", rospy.Time(0))
+            print self._pre_exec_t
         if msg.data == "start_sim":
             self._real_camera_t = self._tfBuffer.lookup_transform("panda_link0","internal_camera_base", rospy.Time(0))
             self._moving = True

@@ -576,6 +576,8 @@ class Parser(object):
             cmd.type = cmd.SIM
         if command_type == "viz":
             cmd.type = cmd.VIZ
+        if command_type == "edit":
+            cmd.type = cmd.EDIT
         for action in actions:
             cmd.core_action.append(action)
         self._command_pub.publish(cmd)

@@ -52,7 +52,9 @@ class Planner(object):
         if msg.data == "skip":
             self._skip = True
 
-    def add_subaction(self, action,sub_action = False):
+    def add_subaction(self, action, plan = None, sub_action = False):
+        if plan is None:
+            plan = self._plan
         rot = tf.transformations.quaternion_from_euler(0,0,0)
         ref_pose = PoseStamped()
         ref_pose.header = action.poses.header
@@ -65,13 +67,13 @@ class Planner(object):
             a1.item = String(action.item.data.split('-')[0])
             a1.poses.header = action.poses.header
             a1.poses.poses.append(action.poses.poses[0])
-            self.add_subaction(a1,sub_action=True)
+            self.add_subaction(a1,plan,sub_action=True)
             a2 = Action()
             a2.type = a2.PLACE
             a2.item = a1.item
             a2.poses.header = action.poses.header
             a2.poses.poses.append(action.poses.poses[1])
-            self.add_subaction(a2,sub_action=True)
+            self.add_subaction(a2,plan,sub_action=True)
 
         if action.type == action.RESET:
             move = Action()
@@ -79,7 +81,7 @@ class Planner(object):
             move.type = move.MOVE
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move.pose.pose.orientation = q
-            self._plan.append(move)
+            plan.append(move)
 
         if action.type == action.VIEW:
             move = Action()
@@ -92,7 +94,7 @@ class Planner(object):
             move.pose.pose.position.y -= trans[1]
             move.pose.pose.position.z -= trans[2]
             move.pose.pose.orientation = q
-            self._plan.append(move)
+            plan.append(move)
 
         if action.type == action.MOVE:
             move = Action()
@@ -100,7 +102,7 @@ class Planner(object):
             move.type = move.MOVE
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move.pose.pose.orientation = q
-            self._plan.append(move)
+            plan.append(move)
 
         if action.type == action.PICK:
             print "pick"
@@ -116,10 +118,10 @@ class Planner(object):
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = action.item
-            self._plan.append(move_above)
-            self._plan.append(move_to)
-            self._plan.append(grasp)
-            self._plan.append(move_above)
+            plan.append(move_above)
+            plan.append(move_to)
+            plan.append(grasp)
+            plan.append(move_above)
 
         if action.type == action.INSPECT:
             print "inspect"
@@ -129,12 +131,12 @@ class Planner(object):
             move_above.poses = copy.deepcopy(action.poses)
             move_above.poses.poses[0].position.z += .35
             move_above.item = action.item
-            self.add_subaction(move_above,sub_action=True)
+            self.add_subaction(move_above,plan,sub_action=True)
             wait = Action()
             wait.finished.data = False
             wait.type = wait.WAIT
             wait.item = action.item
-            self._plan.append(wait)
+            plan.append(wait)
         
         if action.type == action.STOP:
             print "stop"
@@ -143,7 +145,7 @@ class Planner(object):
             move.type = move.MOVE
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move.pose.pose.orientation = q
-            self._plan.append(move)
+            plan.append(move)
         
         if action.type == action.PLACE:
             print "place"
@@ -163,11 +165,11 @@ class Planner(object):
             release.finished.data = False
             release.type = release.RELEASE
             release.item = action.item
-            self._plan.append(move_above)
-            self._plan.append(move_prepare)
-            self._plan.append(move_to)
-            self._plan.append(release)
-            self._plan.append(move_safe)
+            plan.append(move_above)
+            plan.append(move_prepare)
+            plan.append(move_to)
+            plan.append(release)
+            plan.append(move_safe)
 
         if action.type == action.PUSH:
             print "Push"
@@ -188,11 +190,11 @@ class Planner(object):
             release.finished.data = False
             release.type = release.RELEASE
             release.item = String("none")
-            self._plan.append(move_above)
-            self._plan.append(grasp)
-            self._plan.append(move_to)
-            self._plan.append(move_safe)
-            self._plan.append(release)
+            plan.append(move_above)
+            plan.append(grasp)
+            plan.append(move_to)
+            plan.append(move_safe)
+            plan.append(release)
         
         if action.type == action.SCREW:
             print "screw"
@@ -225,16 +227,16 @@ class Planner(object):
             minus = copy.deepcopy(move_to)
             minus.pose.pose.orientation = q_minus
 
-            self._plan.append(move_above)
-            self._plan.append(minus)
-            self._plan.append(grasp)
-            self._plan.append(plus)
-            self._plan.append(release)
-            self._plan.append(minus)
-            self._plan.append(grasp)
-            self._plan.append(plus)
-            self._plan.append(release)
-            self._plan.append(move_above)
+            plan.append(move_above)
+            plan.append(minus)
+            plan.append(grasp)
+            plan.append(plus)
+            plan.append(release)
+            plan.append(minus)
+            plan.append(grasp)
+            plan.append(plus)
+            plan.append(release)
+            plan.append(move_above)
         
         if action.type == action.UNSCREW:
             print "unscrew"
@@ -267,16 +269,16 @@ class Planner(object):
             minus = copy.deepcopy(move_to)
             minus.pose.pose.orientation = q_minus
 
-            self._plan.append(move_above)
-            self._plan.append(plus)
-            self._plan.append(grasp)
-            self._plan.append(minus)
-            self._plan.append(release)
-            self._plan.append(plus)
-            self._plan.append(grasp)
-            self._plan.append(minus)
-            self._plan.append(release)
-            self._plan.append(move_above)
+            plan.append(move_above)
+            plan.append(plus)
+            plan.append(grasp)
+            plan.append(minus)
+            plan.append(release)
+            plan.append(plus)
+            plan.append(grasp)
+            plan.append(minus)
+            plan.append(release)
+            plan.append(move_above)
 
         if action.type == action.WIPE:
             max_off=.05
@@ -290,7 +292,7 @@ class Planner(object):
             move_above.finished.data = False
             move_above.pose.pose = copy.deepcopy(p0)
             move_above.pose.pose.position.z+=.10
-            self._plan.append(move_above)
+            plan.append(move_above)
 
             #distance of the left and right sides of the 'rectangle'
             d_l = self.get_distance(p0,p3)
@@ -312,24 +314,24 @@ class Planner(object):
                 if i == 0:
                     move.type = move.MOVE_TO_CONTACT
                 move.pose = p_l[i] if not i%2 else p_r[i]
-                self._plan.append(move)
+                plan.append(move)
                 move = copy.deepcopy(base_move)
                 move.pose = p_r[i] if not i%2 else p_l[i]
-                self._plan.append(move)
+                plan.append(move)
 
             move_above = copy.deepcopy(move_above)
             move_above.pose = copy.deepcopy(move.pose)
             move_above.pose.pose.position.z += .10
-            self._plan.append(move_above)
+            plan.append(move_above)
             release = Action()
             release.finished.data = False
             release.type = release.RELEASE
             release.item = String("none")
-            self._plan.append(release)
+            plan.append(release)
 
         if not sub_action:
             action.finished.data = True
-            self._plan.append(action)
+            plan.append(action)
 
     def point_toward(self, p0, p1, ratio):
         p = PoseStamped()
@@ -383,21 +385,34 @@ class Planner(object):
     def on_command(self,msg):
         print "new command"
         self._sel_vec_pub.publish(Vector3(1,1,1))
-        self._plan = []
-        current_action_id = 0
         self._type = msg.type
-        for sub_action in msg.core_action:
-            self.add_subaction(sub_action)
 
         if msg.type == msg.SIM:
             self._sim = True
             self._event_pub.publish(String("start_sim"))
             self._running = True
             rospy.sleep(.05)
+
+            self._plan = []
+            for sub_action in msg.core_action:
+                self.add_subaction(sub_action)
+
         if msg.type == msg.EXEC:
             self._sim = False
             self._event_pub.publish(String("start_exec"))
             self._running = True
+
+            self._plan = []
+            for sub_action in msg.core_action:
+                self.add_subaction(sub_action)
+                
+        if msg.type == msg.EDIT:
+            new_plan = []
+            for sub_action in msg.core_action:
+                self.add_subaction(sub_action,new_plan)
+            for i in range(len(new_plan)-len(self._plan)):
+                new_plan.pop(0)
+            self._plan = new_plan
         self.update_plan()
 
     def run(self):
