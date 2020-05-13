@@ -65,6 +65,7 @@ class Planner(object):
         ref_pose.header = action.poses.header
         ref_pose.pose = action.poses.poses[0]
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
+        #print action
 
         if action.type == action.MOVE_OBJECT:
             a1 = Action()
@@ -110,7 +111,7 @@ class Planner(object):
             plan.append(move)
 
         if action.type == action.PICK:
-            print "pick"
+            #print "pick"
             move_above = Action()
             move_above.finished.data = False
             move_above.type = move_above.MOVE
@@ -131,7 +132,7 @@ class Planner(object):
             plan.append(move_above)
 
         if action.type == action.INSPECT:
-            print "inspect"
+            #print "inspect"
             move_above = Action()
             move_above.finished.data = False
             move_above.type = move_above.VIEW
@@ -146,7 +147,7 @@ class Planner(object):
             plan.append(wait)
         
         if action.type == action.STOP:
-            print "stop"
+            #print "stop"
             move = Action()
             move.finished.data = False
             move.type = move.MOVE
@@ -155,7 +156,7 @@ class Planner(object):
             plan.append(move)
         
         if action.type == action.PLACE:
-            print "place"
+            #print "place"
             move_above = Action()
             move_above.finished.data = False
             move_above.type = move_above.MOVE
@@ -181,7 +182,7 @@ class Planner(object):
             plan.append(move_safe)
 
         if action.type == action.PUSH:
-            print "Push"
+            # "Push"
             grasp = Action()
             grasp.finished.data = False
             grasp.type = grasp.GRASP
@@ -206,7 +207,7 @@ class Planner(object):
             plan.append(release)
         
         if action.type == action.SCREW:
-            print "screw"
+            #print "screw"
             #angle = 3*np.pi/5.
             angle = np.pi/2.
             rot = tf.transformations.quaternion_from_euler(0,0,-angle)
@@ -249,7 +250,7 @@ class Planner(object):
             plan.append(move_above)
         
         if action.type == action.UNSCREW:
-            print "unscrew"
+            #print "unscrew"
             #angle = 3*np.pi/5.
             angle = np.pi/2.
             rot = tf.transformations.quaternion_from_euler(0,0,-angle)
@@ -341,6 +342,7 @@ class Planner(object):
             plan.append(release)
 
         if not sub_action:
+            #print action
             action.finished.data = True
             plan.append(action)
 

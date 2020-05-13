@@ -4,14 +4,14 @@
     <arg name="only_virtual" default="true"/>
     <node pkg="authoring" type="planner" name="planner" output="screen"/>
     <node pkg="authoring" type="poi" name="poi"/>
-    <node pkg="authoring" type="tracker" name="tracker" output="screen"/>
+    <node pkg="authoring" type="tracker" name="tracker"/>
 
-    <node pkg="authoring" type="mover" name="mover" output="screen">
+    <node pkg="authoring" type="mover" name="mover">
         <param name="use_relaxed_ik" type="bool" value="$(arg use_relaxed_ik)" />
         <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
     </node>
 
-    <node pkg="authoring" type="parser" name="parser" output="screen">
+    <node pkg="authoring" type="parser" name="parser">
         <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
     </node>
 

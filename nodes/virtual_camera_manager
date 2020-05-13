@@ -113,7 +113,6 @@ class VirtualCamera(object):
             t.child_frame_id = "internal_camera_base"
             self._br.sendTransform(t)
         if self._moving or self._locked:
-            #print "publishing last"
             self._last_t.header.stamp = rospy.Time.now()
             self._br.sendTransform(self._last_t)
             return
