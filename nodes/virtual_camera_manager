@@ -122,9 +122,9 @@ class VirtualCamera(object):
             try:
                 t = self._tfBuffer.lookup_transform("inv_tag_2","client_camera", rospy.Time(0))
                 coef = 4
-                t.transform.translation.x = coef*t.transform.translation.x-.6
-                t.transform.translation.y = coef*t.transform.translation.y
-                t.transform.translation.z = coef*t.transform.translation.z-2.4
+                t.transform.translation.x = coef*t.transform.translation.x
+                t.transform.translation.y = 1.5*coef*t.transform.translation.y
+                t.transform.translation.z = coef*t.transform.translation.z
                 t.header.frame_id = "panda_link0"
                 t.child_frame_id = "camera1"
                 t.header.stamp = rospy.Time.now()
