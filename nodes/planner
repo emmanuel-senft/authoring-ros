@@ -31,6 +31,7 @@ class Planner(object):
         self._sel_vec_pub = rospy.Publisher("/panda/selection_vector", Vector3, queue_size=1)
         self._force_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_force)
         self._event_sub = rospy.Subscriber("/event", String, self.on_event)
+        self._fd_sub = rospy.Subscriber("/fd/button", Bool, self.on_fd)
         
         self._plan = []
         self._running = False
@@ -38,7 +39,7 @@ class Planner(object):
         self._skip = False
         self._act = False
         self._integrator = Twist()
-        self._freq = 100.
+        self._freq = 200.
         self._force = Vector3()
         self._inserting_factor = None
         self._plan_z = None
@@ -46,6 +47,10 @@ class Planner(object):
     def on_force(self, msg):
         self._force = msg.force
 
+    def on_fd(self, msg):
+        if msg.data:
+            self.next_sub_action()
+            
     def on_event(self, msg):
         if msg.data == "act":
             self._act = True
@@ -525,7 +530,7 @@ class Planner(object):
         n_turns = 10
         time = 10.
         sample_points = time*self._freq
-        max_d = .005
+        max_d = .01
         d_x = self._inserting_factor * np.cos(n_turns*2*np.pi*self._inserting_factor/sample_points)*max_d/sample_points
         d_y = self._inserting_factor * np.sin(n_turns*2*np.pi*self._inserting_factor/sample_points)*max_d/sample_points
 
@@ -558,20 +563,21 @@ class Planner(object):
 
         difference_angle = q.GetRPY()
         angle  = list(difference_angle)
+
         d = current_angle[2] + difference_angle[2]
         if d > np.pi:
             angle[2] -= 2 * np.pi
         if d < -np.pi:
             angle[2] += 2 * np.pi 
 
-        threshold = .002
+        threshold = .001
         force_threshold = 4.
         dx = math.fabs(pose.position.x)
         dy = math.fabs(pose.position.y)
         dz = math.fabs(pose.position.z)
 
         if self._inserting_factor is not None:
-            if (np.fabs(self._plan_z-dz)>threshold or dz<threshold):
+            if (np.fabs(self._plan_z-dz)>5*threshold or dz<threshold):
                 print "found hole"
                 self._inserting_factor = None
                 v = Vector3(1,1,1)

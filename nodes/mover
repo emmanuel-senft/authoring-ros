@@ -26,6 +26,7 @@ class Mover(object):
         self._virtual = rospy.get_param('~only_virtual')
         if not self._r_ik:
             self._sim_vel_pub = rospy.Publisher("/mover/cart_vel",Twist,queue_size=5)
+        self._panda_vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=5)
         self._panda_path_pub = rospy.Publisher("/panda/path",Path,queue_size=5)
 
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
@@ -45,10 +46,16 @@ class Mover(object):
         self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command)
         self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=1)
         self._event_sub = rospy.Subscriber("/event",String, self.on_event)
+        self._fd_sub = rospy.Subscriber("/fd/twist", Twist, self.on_fd)
+
+        self._fd_mod = Twist()
 
  
     def run(self):
         rospy.spin()
+
+    def on_fd(self, msg):
+        self._fd_mod = msg
 
     def on_event(self, msg):
         cmd = msg.data.split(";")[0] 
@@ -56,6 +63,7 @@ class Mover(object):
             self._sim = False
             self._exec = False
             self._sim_vel_pub.publish(Twist())
+            self._panda_vel_pub.publish(Twist())
         if cmd == "start_sim":
             self._sim = True
             self._exec = False
@@ -65,6 +73,7 @@ class Mover(object):
         if cmd  == "wait":
             vel = Twist()
             self._sim_vel_pub.publish(vel)
+            self._panda_vel_pub.publish(Twist())
  
     def on_goal(self, msg):
         if self._sim or (self._exec and self._virtual):
@@ -87,6 +96,7 @@ class Mover(object):
 
             difference_angle = q.GetRPY()
             angle  = list(difference_angle)
+            
             d = current_angle[2] + difference_angle[2]
             if d > np.pi:
                 angle[2] -= 2 * np.pi
@@ -94,16 +104,73 @@ class Mover(object):
                 angle[2] += 2 * np.pi 
 
             vel = Twist()
-            vel.linear.x = pose.position.x/d_t
-            vel.linear.y = pose.position.y/d_t
-            vel.linear.z = pose.position.z/d_t
-            vel.angular.x = angle[0]/d_t
-            vel.angular.y = angle[1]/d_t
-            vel.angular.z = angle[2]/d_t
+            vel.linear.x = pose.position.x/d_t + self._fd_mod.linear.x
+            vel.linear.y = pose.position.y/d_t + self._fd_mod.linear.y
+            vel.linear.z = pose.position.z/d_t + self._fd_mod.linear.z
+            vel.angular.x = angle[0]/d_t + self._fd_mod.angular.x
+            vel.angular.y = angle[1]/d_t + self._fd_mod.angular.y
+            vel.angular.z = angle[2]/d_t + self._fd_mod.angular.z
             
             self._sim_vel_pub.publish(vel)
             return
         if self._exec and not self._r_ik:
+            ee_frame = 'end_effector'
+            (trans,rot) = self._tl.lookupTransform("panda_link0", ee_frame, rospy.Time(0))
+            d_t = (msg.header.stamp - rospy.Time.now()).to_sec()
+            pose = Pose()
+            pose.position.x = msg.pose.position.x-trans[0]
+            pose.position.y = msg.pose.position.y-trans[1]
+            pose.position.z = msg.pose.position.z-trans[2]
+            
+            #From https://answers.ros.org/question/10124/relative-rotation-between-two-quaternions/
+
+            qp = PyKDL.Rotation.Quaternion(rot[0],rot[1],rot[2],rot[3])
+            current_angle = qp.GetRPY()
+
+            rot = msg.pose.orientation
+            qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+            q = qg*qp.Inverse()
+
+            difference_angle = q.GetRPY()
+            angle  = list(difference_angle)
+            
+            d = current_angle[2] + difference_angle[2]
+            if d > np.pi:
+                angle[2] -= 2 * np.pi
+            if d < -np.pi:
+                angle[2] += 2 * np.pi 
+
+            vel = Twist()
+            if (d_t<.2):
+                d_t = .2
+            l=4
+            vel.linear.x = pose.position.x/d_t + l*self._fd_mod.linear.x
+            vel.linear.y = pose.position.y/d_t + l*self._fd_mod.linear.y
+            vel.linear.z = pose.position.z/d_t + l*self._fd_mod.linear.z
+            vel.angular.x = angle[0]/d_t + l*self._fd_mod.angular.x
+            vel.angular.y = angle[1]/d_t + l*self._fd_mod.angular.y
+            vel.angular.z = angle[2]/d_t + l*self._fd_mod.angular.z
+            self._panda_vel_pub.publish(vel)
+            return
+            
+            goal = Pose()
+            k = 10.
+            goal.position.x = trans[0] + vel.linear.x/k
+            goal.position.y = trans[1] + vel.linear.y/k
+            goal.position.z = trans[2] + vel.linear.z/k
+
+            qp = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+            current_angle = qp.GetRPY()
+            desired_angle= (current_angle[0]+vel.angular.x/k,current_angle[1]+vel.angular.y/k, current_angle[2]+vel.angular.z/k)
+            q = PyKDL.Rotation.RPY(desired_angle[0],desired_angle[1],desired_angle[2])
+            q = q.GetQuaternion()
+            goal.orientation.x = q[0]
+            goal.orientation.y = q[1]
+            goal.orientation.z = q[2]
+            goal.orientation.w = q[3]
+            self._panda_pose_pub.publish(goal)
+
+            return
             if msg.pose == self._last_pose:
                 return
             path = Path()
@@ -126,6 +193,7 @@ class Mover(object):
         if commands[0] == "grasp" or commands[0] == "release":
             vel = Twist()
             self._sim_vel_pub.publish(vel)
+            self._panda_vel_pub.publish(Twist())
         if self._exec:
             self._command_pub.publish(msg)
         
