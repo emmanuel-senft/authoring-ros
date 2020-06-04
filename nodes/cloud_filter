@@ -27,19 +27,19 @@ class Filter(object):
         self._pois = None
         self._freq = 1
         self._time_since_pub = rospy.Time.now()
-        print "ready"
+        print("ready")
         self._lock=False
 
     def on_poi(self, msg):
-        print "got pois"
+        print("got pois")
         self._pois = msg.poi_array
         
     def on_cloud(self, msg):
         if (rospy.Time.now() - self._time_since_pub).to_sec() < 1/self._freq:
             return
-        print "preparing"
+        print("preparing")
         if self._pois != None:
-            print "with pois"
+            print("with pois")
             cloud = ros_numpy.numpify(msg)
 
             for p in self._pois:
@@ -68,14 +68,14 @@ class Filter(object):
         if p.type == p.SCREW:
             pose = p.pose.pose
             rot = np.array(tf.transformations.quaternion_matrix(self.get_vect(pose.orientation))[:3,:3])
-            print rot.dtype
+            print(rot.dtype
             pos =  np.array(self.get_vect(pose.position))
-            print pos.dtype
+            print(pos.dtype)
             insts.append(MeshInstance('screw', pos,rot))
         self._mesh_subtractor.setMeshInstances(insts)
         mask = self._mesh_subtractor(cloud)
         cloud = cloud[mask]
-        print "filtered"
+        print("filtered")
         return cloud
 
         if mesh is None:

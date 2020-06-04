@@ -37,7 +37,7 @@ class Parser(object):
         self._virtual = rospy.get_param('~only_virtual')
         self._camera_topic = "/rgb/" if not self._virtual else "/virtual_camera/"
 
-        print self._camera_topic+"camera_info"
+        print(self._camera_topic+"camera_info")
 
         self._model = image_geometry.PinholeCameraModel()
         self._model.fromCameraInfo(rospy.wait_for_message(self._camera_topic+"camera_info", CameraInfo))
@@ -316,8 +316,8 @@ class Parser(object):
             target.pose.position.y = float(arg[1])*scale
             target.pose.orientation.w = 1
             target = self._tfBuffer.transform(target,REFERENCE_FRAME)
-            print target
             t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
+            print(target)
             t_camera = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "internal_rgb_camera_link", rospy.Time(0)) 
             t.transform.translation.x += target.pose.position.x - t_camera.transform.translation.x
             t.transform.translation.y += target.pose.position.y - t_camera.transform.translation.y
@@ -374,7 +374,7 @@ class Parser(object):
             return
 
         if command_type == "reset_position":
-            print "here"
+            print("here")
             self._panda_command.publish(String("release"))
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
@@ -490,7 +490,7 @@ class Parser(object):
                     d = image[point.y,point.x]
                     action.item = String(cmd[1].split('_')[0])
                     if d == 0.0:
-                        print "bad depth"
+                        print("bad depth")
                         self._gui_pub.publish(String("bad_depth"))
                         return None
                     p = self.get_xyz_from_pixel(point.x,point.y,d)
@@ -528,9 +528,9 @@ class Parser(object):
             #    if len(points) != 2:
             #        d = image[p.y,p.x]
             #        if d == 0.0:
-            #            print name
-            #            print index
-            #            print "bad depth"
+            #            print(name)
+            #            print(index)
+            #            print("bad depth")
             #            self._feedback_pub.publish(String("bad_depth"))
             #            return None
             #    p = self.get_xyz_from_pixel(p.x, p.y,d)

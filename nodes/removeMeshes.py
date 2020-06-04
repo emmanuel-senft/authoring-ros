@@ -60,9 +60,9 @@ class PointCloudMeshFilter:
         return validMask
 
     def distanceQuery(self, meshInstance, points):
-        print points.dtype
-        print meshInstance.Position
-        print meshInstance.Rotation.T
+        print(points.dtype)
+        print(meshInstance.Position)
+        print(meshInstance.Rotation.T)
         points = np.matmul((points - meshInstance.Position), meshInstance.Rotation.T)
         return self.MeshDistanceCache[meshInstance.Name].distanceQuery(points)
     

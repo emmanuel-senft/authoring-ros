@@ -68,7 +68,7 @@ class VirtualCamera(object):
             self._moving = True
             self._flying = False
             self._pre_exec_t = self._tfBuffer.lookup_transform("panda_link0","camera1", rospy.Time(0))
-            print self._pre_exec_t
+            print(self._pre_exec_t)
         if msg.data == "start_sim":
             self._real_camera_t = self._tfBuffer.lookup_transform("panda_link0","internal_camera_base", rospy.Time(0))
             self._moving = True
@@ -101,8 +101,8 @@ class VirtualCamera(object):
             
     def publish_camera_pose(self):
         if self._sim:
-            #print "use real"
-            #print self._real_camera_t 
+            #print("use real")
+            #print(self._real_camera_t)
             self._real_camera_t.header.stamp = rospy.Time.now()
             self._br.sendTransform(self._real_camera_t)
         else:
@@ -118,7 +118,7 @@ class VirtualCamera(object):
             return
 
         if self._flying:
-            print "Free flying"
+            print("Free flying")
             try:
                 t = self._tfBuffer.lookup_transform("inv_tag_2","client_camera", rospy.Time(0))
                 coef = 4
@@ -132,7 +132,7 @@ class VirtualCamera(object):
                 self._br.sendTransform(t)
                 return
             except: 
-                print "Tag not found"
+                print("Tag not found")
                 self._last_t.header.stamp = rospy.Time.now()
                 self._br.sendTransform(self._last_t)
                 return

@@ -60,7 +60,7 @@ class Ik_Wrapper(object):
     def on_velocity(self, msg):
         vel = msg
         if self.get_lin_magnitude(vel) < .00000001 and self.get_ang_magnitude(vel) < .00000001:
-            print "vel 0 requested"
+            print("vel 0 requested")
             self._stop = True
             return
         self._stop = False

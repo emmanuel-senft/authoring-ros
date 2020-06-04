@@ -35,7 +35,7 @@ if __name__ == '__main__':
                 trans = tfBuffer.lookup_transform(child, parent, rospy.Time())
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
                 rate.sleep()
-                print "error"
+                print("error")
                 continue
             trans_str = ""
             trans_str+=str(trans.transform.translation.x)+" "

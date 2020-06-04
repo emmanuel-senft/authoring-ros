@@ -104,9 +104,9 @@ class Simulator(object):
             self._sim = False
     
     def on_command(self, msg):
-        print "in"
+        print("in")
         if self._sim:
-            print "sim"
+            print("sim")
             if msg.data == "grasp":
                 self._finger_val = 0.0
                 self._current_joint[-1] = self._finger_val

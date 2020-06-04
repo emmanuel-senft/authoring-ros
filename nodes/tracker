@@ -44,7 +44,7 @@ class Tracker(object):
 
 
     def on_pois(self, msg):
-        print "Got poi"
+        print("Got poi")
         if self._init_pois is not None:
             return
         self._init_pois = []
@@ -63,7 +63,7 @@ class Tracker(object):
             self._sim = True
         if event[0] == "grasped":
             self._grasped_object = event[1]
-            print "grasping "+self._grasped_object
+            print("grasping "+self._grasped_object)
         if event[0] == "released":
             self._grasped_object = None
         if event[0] == "motion_finished":
@@ -77,8 +77,8 @@ class Tracker(object):
 
     def publish_pois(self):
         self._tf_array = []
-        print "N pois"
-        print len(self._estimated_pois)
+        print("N pois")
+        print(len(self._estimated_pois))
         for poi in self._estimated_pois:
             t = TransformStamped()
             t.header.frame_id = REFERENCE_FRAME

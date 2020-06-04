@@ -6,7 +6,7 @@ import sys
 
 def sender():
     rospy.init_node('pc_sender')
-    print "reading"
+    print("reading")
     msg = PointCloud2()
     with open('/home/senft/pc2.txt', 'r') as infile:
         msg.deserialize(infile.read())

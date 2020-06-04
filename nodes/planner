@@ -65,7 +65,7 @@ class Planner(object):
         ref_pose.header = action.poses.header
         ref_pose.pose = action.poses.poses[0]
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
-        #print action
+        print(ref_pose)
 
         if action.type == action.MOVE_OBJECT:
             a1 = Action()
@@ -111,7 +111,7 @@ class Planner(object):
             plan.append(move)
 
         if action.type == action.PICK:
-            #print "pick"
+            #print("pick")
             move_above = Action()
             move_above.finished.data = False
             move_above.type = move_above.MOVE
@@ -132,7 +132,7 @@ class Planner(object):
             plan.append(move_above)
 
         if action.type == action.INSPECT:
-            #print "inspect"
+            #print("inspect")
             move_above = Action()
             move_above.finished.data = False
             move_above.type = move_above.VIEW
@@ -147,7 +147,7 @@ class Planner(object):
             plan.append(wait)
         
         if action.type == action.STOP:
-            #print "stop"
+            #print("stop")
             move = Action()
             move.finished.data = False
             move.type = move.MOVE
@@ -156,7 +156,7 @@ class Planner(object):
             plan.append(move)
         
         if action.type == action.PLACE:
-            #print "place"
+            #print("place")
             move_above = Action()
             move_above.finished.data = False
             move_above.type = move_above.MOVE
@@ -207,7 +207,7 @@ class Planner(object):
             plan.append(release)
         
         if action.type == action.SCREW:
-            #print "screw"
+            #print("screw")
             #angle = 3*np.pi/5.
             angle = np.pi/2.
             rot = tf.transformations.quaternion_from_euler(0,0,-angle)
@@ -250,7 +250,7 @@ class Planner(object):
             plan.append(move_above)
         
         if action.type == action.UNSCREW:
-            #print "unscrew"
+            #print("unscrew")
             #angle = 3*np.pi/5.
             angle = np.pi/2.
             rot = tf.transformations.quaternion_from_euler(0,0,-angle)
@@ -342,7 +342,7 @@ class Planner(object):
             plan.append(release)
 
         if not sub_action:
-            #print action
+            #print(action)
             action.finished.data = True
             plan.append(action)
 
@@ -396,7 +396,7 @@ class Planner(object):
         return ""
 
     def on_command(self,msg):
-        print "new command"
+        print("new command")
         self._sel_vec_pub.publish(Vector3(1,1,1))
         self._type = msg.type
 
@@ -433,7 +433,7 @@ class Planner(object):
         while not rospy.is_shutdown():
             #t1 = rospy.Time.now()
             self.update_plan()
-            #print "time "+str((rospy.Time.now()-t1).to_sec())
+            #print("time "+str((rospy.Time.now()-t1).to_sec()))
             r.sleep()
 
     def next_sub_action(self):
@@ -452,21 +452,21 @@ class Planner(object):
         if current_action.type == self._plan[0].MOVE_FORCE:
             self._sel_vec_pub.publish(Vector3(1,1,0))
 
-        print len(self._plan)
+        print(len(self._plan))
 
     def update_plan(self):
         self.display_path()
         if not self._running:
             return
         if len(self._plan) == 0:
-            print "Finished"
+            print("Finished")
             self._event_pub.publish(String("motion_finished"))
 
             self._running = False
             return
 
         current_action = self._plan[0]
-        print self.get_type(current_action)
+        print(self.get_type(current_action))
         if current_action.finished.data:
             self._event_pub.publish(String("action_finished;"+self.get_type(current_action)+":"+current_action.item.data))
             self.next_sub_action()
@@ -493,15 +493,15 @@ class Planner(object):
                 self.next_sub_action()
         if current_action.type == current_action.WAIT:
             if self._skip:
-                print "skipping"
+                print("skipping")
                 #Finishing skipping action
                 self._plan.pop(0)
                 self._plan.pop(0)
                 #Removing next action
                 while not (self._plan[0].finished.data):
-                    print "removing"
+                    print("removing")
                     self._plan.pop(0)
-                print "done skipping"
+                print("done skipping")
                 self._skip = False
                 return
             elif self._act:
@@ -522,7 +522,7 @@ class Planner(object):
             return [val.x, val.y, val.z]
 
     def insert(self, goal, dz):
-        print "inserting"
+        print("inserting")
         if self._inserting_factor == None:
             self._plan_z = dz
             v = Vector3(1,1,0)
@@ -582,7 +582,7 @@ class Planner(object):
 
         if self._inserting_factor is not None:
             if (np.fabs(self._plan_z-dz)>5*threshold or dz<threshold):
-                print "found hole"
+                print("found hole")
                 self._inserting_factor = None
                 v = Vector3(1,1,1)
                 self._sel_vec_pub.publish(v)
@@ -593,18 +593,18 @@ class Planner(object):
 
         if dx < threshold and dy < threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
             if dz < threshold:
-                print "arrived sub point"
+                print("arrived sub point")
                 goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.01)
                 self._goal_pub.publish(goal)
                 return True
             if np.fabs(self._force.z) > force_threshold:
                 if (action.type == action.MOVE_TO_CONTACT or action.type == action.MOVE_FORCE):
-                    print "found contact"
+                    print("found contact")
                     goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.01)
                     self._goal_pub.publish(goal)
                     return True
                 if action.type == action.INSERT:
-                    print np.fabs(self._force.z)
+                    print(np.fabs(self._force.z))
                     self.insert(goal,dz)
                     return False
         max_lin = .12
