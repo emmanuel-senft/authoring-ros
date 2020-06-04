@@ -107,7 +107,7 @@ class Planner(object):
             move.finished.data = False
             move.type = move.MOVE
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move.pose.pose.orientation = q
+            #move.pose.pose.orientation = q
             plan.append(move)
 
         if action.type == action.PICK:
