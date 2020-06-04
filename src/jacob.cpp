@@ -1,7 +1,6 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/JointState.h>
-#include <relaxed_ik/JointAngles.h>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
 #include <iostream>
@@ -341,12 +340,12 @@ void on_vel(const geometry_msgs::Twist::ConstPtr& msg){
 
   Eigen::VectorXd jointVelocities = Eigen::Map<Eigen::MatrixXd>(jacobian_array.data(), 6, 7).completeOrthogonalDecomposition().solve(v);
 
-  relaxed_ik::JointAngles vel;
-  vel.angles.data.resize(7);
+  sensor_msgs::JointState state;
+  state.velocity.resize(7);
   for (size_t i = 0; i < 7; i++) {
-    vel.angles.data[i] = jointVelocities[i];
+    state.velocity[i] = jointVelocities[i];
   }
-  angles_pub->publish(vel);
+  angles_pub->publish(state);
 }
 
 int main(int argc, char **argv)
@@ -355,7 +354,7 @@ int main(int argc, char **argv)
 
   ros::NodeHandle n;
 
-  angles_pub = new ros::Publisher(n.advertise<relaxed_ik::JointAngles>("/jacob/joint_vel", 10));
+  angles_pub = new ros::Publisher(n.advertise<sensor_msgs::JointState>("/jacob/joint_vel", 10));
 
   ros::Subscriber vel_sub = n.subscribe<geometry_msgs::Twist>("/mover/cart_vel", 10, on_vel);
   ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/viz/joint_states", 10, on_joint);
