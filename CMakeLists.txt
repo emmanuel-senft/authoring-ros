@@ -17,6 +17,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies
 find_package(OpenCV REQUIRED)
 
+find_library(adept REQUIRED)
+
 find_package(Eigen3 REQUIRED)
 
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
@@ -60,8 +62,8 @@ set(LIBS
     )
 
 add_executable(pandaJacob src/jacob.cpp)
-target_include_directories(pandaJacob PUBLIC ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR} /home/senft/catkin_ws/devel/include )
-target_link_libraries(pandaJacob
+target_include_directories(pandaJacob PUBLIC adept${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR} /home/senft/catkin_ws/devel/include )
+target_link_libraries(pandaJacob adept
    ${catkin_LIBRARIES}
 )
 #############
