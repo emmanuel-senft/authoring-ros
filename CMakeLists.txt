@@ -106,6 +106,7 @@ catkin_install_python(PROGRAMS
     nodes/virtual_camera_manager
     nodes/pc_publish
     nodes/tracker
+    nodes/clipping_task
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS pandaJacob

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="rgb_point_cloud" default="true"/>
-    <arg name="with_utils" default="false"/>
+    <arg name="with_utils" default="true"/>
     <arg name="use_static_cloud" default="false"/>
     <arg name="use_real_kinect" default="false"/>
     <arg name="only_virtual" default="true"/>

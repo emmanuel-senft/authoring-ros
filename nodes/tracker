@@ -83,6 +83,7 @@ class Tracker(object):
             t = TransformStamped()
             t.header.frame_id = REFERENCE_FRAME
             t.child_frame_id = self.get_name(poi)
+            t.header.stamp = rospy.Time.now()
             t.transform.translation.x=poi.pose.pose.position.x
             t.transform.translation.y=poi.pose.pose.position.y
             t.transform.translation.z=poi.pose.pose.position.z
@@ -94,6 +95,7 @@ class Tracker(object):
         msg = POIArray()
         msg.poi_array = copy.copy(self._estimated_pois)
         self._poi_pub.publish(msg)
+        self._br.sendTransform(self._tf_array)
            
     def get_pose_from_trans(self, t):
         pose = Pose()
@@ -118,7 +120,6 @@ class Tracker(object):
             if p.type == p.SCREW:
                 self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
 
-        self._br.sendTransform(self._tf_array)
 
     #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
     def get_color(self, string, alpha):
