@@ -13,7 +13,7 @@ from sensor_msgs.msg import Image, PointCloud2, CameraInfo
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion, Twist
+from geometry_msgs.msg import TransformStamped, PoseStamped, Point, Pose, PoseArray, Quaternion, Twist, Vector3
 from std_msgs.msg import ColorRGBA
 from authoring_msgs.msg import Action, Command, POI, POIArray
 import tf
@@ -48,7 +48,7 @@ class Parser(object):
         self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=1)
         self._panda_command = rospy.Publisher("/panda/commands",String, queue_size=1)
 
-        self._br = tf.TransformBroadcaster()
+        self._br = tf2_ros.TransformBroadcaster()
         rospy.sleep(.5)
         self._pois = []
         self._poi_gui = ""
@@ -321,35 +321,12 @@ class Parser(object):
             target.pose.orientation.y = q[1]
             target.pose.orientation.z = q[2]
             target.pose.orientation.w = q[3]
-            #target.pose.orientation.w = 1
             target = self._tfBuffer.transform(target,REFERENCE_FRAME)
-            print(target)
-            t_camera = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "internal_rgb_camera_link", rospy.Time(0)) 
-            t_camera = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "internal_rgb_camera_link", rospy.Time(0)) 
-            q_target = PyKDL.Rotation.Quaternion(target.pose.orientation.x,target.pose.orientation.y,target.pose.orientation.z,target.pose.orientation.w)
-            q_camera = PyKDL.Rotation.Quaternion(t_camera.transform.rotation.x,t_camera.transform.rotation.y,t_camera.transform.rotation.z,t_camera.transform.rotation.w)
-            q_t = q_target*q_camera.Inverse()
-            
-            t_ee = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
-
-            q_ee = PyKDL.Rotation.Quaternion(t_ee.transform.rotation.x,t_ee.transform.rotation.y,t_ee.transform.rotation.z,t_ee.transform.rotation.w)
-            
-            q_ee_new = q_ee*q_t
-            q_ee_new = q_ee_new.GetQuaternion()
-            
-            t_ee.transform.translation.x += target.pose.position.x - t_camera.transform.translation.x
-            t_ee.transform.translation.y += target.pose.position.y - t_camera.transform.translation.y
-            t_ee.transform.translation.z += target.pose.position.z - t_camera.transform.translation.z
             
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
-            action.type = action.MOVE
-            pose = self.get_pose_from_trans(t_ee)
-            pose.orientation.x = q_ee_new[0]
-            pose.orientation.y = q_ee_new[1]
-            pose.orientation.z = q_ee_new[2]
-            pose.orientation.w = q_ee_new[3]
-            action.poses.poses.append(pose) 
+            action.type = action.VIEW
+            action.poses.poses.append(target.pose) 
             cmd = Command()
             cmd.type = cmd.EXEC
             cmd.core_action.append(action)
@@ -358,16 +335,16 @@ class Parser(object):
 
         if command_type.startswith('zoom'):
             target = PoseStamped()
-            target.header.frame_id = "end_effector"
+            target.header.frame_id = "internal_rgb_camera_link"
             target.pose.orientation.w=1
             if  command_type == 'zoom_in':
-                target.pose.position.z=-.05
-            else:
                 target.pose.position.z=+.05
+            else:
+                target.pose.position.z=-.05
             t = self._tfBuffer.transform(target, REFERENCE_FRAME) 
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
-            action.type = action.MOVE
+            action.type = action.VIEW
             pose = t.pose#self.get_pose_from_trans(t)
             action.poses.poses.append(pose) 
             cmd = Command()

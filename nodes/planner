@@ -25,6 +25,7 @@ class Planner(object):
         self._path_pub = rospy.Publisher("/planner/path", Path, queue_size=0)
         self._camera_pub = rospy.Publisher("/panda/camera_control", Bool, queue_size=0)
         self._goal_pub = rospy.Publisher("/planner/goal_pose", PoseStamped, queue_size=5)
+        self._cam_goal_pub = rospy.Publisher("/planner/cam_goal_pose", PoseStamped, queue_size=5)
         self._command_sub = rospy.Subscriber("/parser/command", Command, self.on_command)
         self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
         self._command_pub = rospy.Publisher("/planner/command", String, queue_size=1)
@@ -95,11 +96,11 @@ class Planner(object):
             move.type = move.VIEW
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             #Fix for non vertical objects
-            (trans,rot) = self._tl.lookupTransform("go_camera","camera1",rospy.Time(0))
-            move.pose.pose.position.x -= trans[0]
-            move.pose.pose.position.y -= trans[1]
-            move.pose.pose.position.z -= trans[2]
-            move.pose.pose.orientation = q
+            #(trans,rot) = self._tl.lookupTransform("go_camera","camera1",rospy.Time(0))
+            #move.pose.pose.position.x -= trans[0]
+            #move.pose.pose.position.y -= trans[1]
+            #move.pose.pose.position.z -= trans[2]
+            #move.pose.pose.orientation = q
             plan.append(move)
 
         if action.type == action.MOVE:
@@ -477,7 +478,7 @@ class Planner(object):
                 return
         if current_action.type == current_action.VIEW:
             self._camera_pub.publish(Bool(True))
-            if self.go_to_position(current_action):
+            if self.view(current_action):
                 self._camera_pub.publish(Bool(False))
                 self.next_sub_action()
         if current_action.type == current_action.MOVE_TO_CONTACT:
@@ -543,6 +544,51 @@ class Planner(object):
         goal.pose.position.y+=d_y
         self._goal_pub.publish(goal)        
 
+    
+    def view(self, action):
+        goal = copy.deepcopy(action.pose)
+        self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "cam_goal",REFERENCE_FRAME)
+        try:
+            cam_frame = "internal_rgb_camera_link"
+            (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, cam_frame, rospy.Time(0))
+        except:
+            return
+        pose = Pose()
+        pose.position.x = goal.pose.position.x-trans[0]
+        pose.position.y = goal.pose.position.y-trans[1]
+        pose.position.z = goal.pose.position.z-trans[2]
+
+        #From https://answers.ros.org/question/10124/relative-rotation-between-two-quaternions/
+        qp = PyKDL.Rotation.Quaternion(rot[0],rot[1],rot[2],rot[3])
+        current_angle = qp.GetRPY()
+
+        rot = goal.pose.orientation
+        qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+        q = qg*qp.Inverse()
+
+        difference_angle = q.GetRPY()
+        angle  = list(difference_angle) 
+
+        threshold = .001
+        dx = math.fabs(pose.position.x)
+        dy = math.fabs(pose.position.y)
+        dz = math.fabs(pose.position.z)
+
+        if dx < threshold and dy < threshold and dz < threshold and math.fabs(angle[0])<.01 and math.fabs(angle[1])<.01:
+            #Do something for x angle difference
+            return True
+            
+        max_lin = .12
+        max_rot = .6
+
+        d = np.sqrt(dx**2+dy**2+dz**2)
+
+        t_lin = d / max_lin
+        t_rot = max([np.fabs(angle[0])/max_rot,np.fabs(angle[1])/max_rot])
+    
+        goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(max(t_lin,t_rot))
+        self._cam_goal_pub.publish(goal)
+        return False
     def go_to_position(self, action):
         goal = copy.deepcopy(action.pose)
         self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "current_goal",REFERENCE_FRAME)
