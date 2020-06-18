@@ -428,9 +428,16 @@ class Parser(object):
         actions = []
 
         list_actions.pop(0)
-        if not self._virtual:
-            image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image))
-
+        for action in list_actions:
+            cmd = action.split(":")
+            if len(cmd)>1 and cmd[1].find(",") != -1:
+                try:
+                    #Only used if necessary?
+                    image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image,timeout=.5))
+                    break
+                except Exception as e:
+                    print(e)
+                    return
         moved = {}
         for action in list_actions:
             cmd = action.split(":")
