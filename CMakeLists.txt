@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(authoring)
 
+SET(CMAKE_CXX_FLAGS  "-O3 -fopenmp")
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -16,8 +18,6 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies
 find_package(OpenCV REQUIRED)
-
-find_library(adept REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 
