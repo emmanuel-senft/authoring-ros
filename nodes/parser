@@ -487,9 +487,14 @@ class Parser(object):
                 for coord in cmd[1].split('_'):
                     coord = coord.split(',')
                     point = Point()
-                    point.x = int(coord[0])
-                    point.y = int(coord[1])
+                    k=1
+                    if self._virtual:
+                        k=4
+                    point.x = int(int(coord[0])/k)
+                    point.y = int(int(coord[1])/k)
                     d = image[point.y,point.x]
+                    if self._virtual:
+                        d=d[0]/255*3.5
                     action.item = String(cmd[1].split('_')[0])
                     if d == 0.0:
                         print("bad depth")
