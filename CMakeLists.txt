@@ -107,6 +107,7 @@ catkin_install_python(PROGRAMS
     nodes/pc_publish
     nodes/tracker
     nodes/clipping_task
+    nodes/folding_task
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS pandaJacob

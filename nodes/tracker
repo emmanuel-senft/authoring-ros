@@ -76,12 +76,14 @@ class Tracker(object):
             self.publish_pois()
 
     def publish_pois(self):
+        if self._estimated_pois is None:
+            return
         self._tf_array = []
-        print("N pois")
-        print(len(self._estimated_pois))
+        #print("N pois")
+        #print(len(self._estimated_pois))
         for poi in self._estimated_pois:
             t = TransformStamped()
-            t.header.frame_id = REFERENCE_FRAME
+            t.header.frame_id = poi.pose.header.frame_id
             t.child_frame_id = self.get_name(poi)
             t.header.stamp = rospy.Time.now()
             t.transform.translation.x=poi.pose.pose.position.x
@@ -143,6 +145,8 @@ class Tracker(object):
             name = "pusher"
         if poi.type == poi.SCREW_DRIVER:
             name = "screwdriver"
+        if poi.type == poi.EDGE:
+            name = "edge"
         name += '_' + str(poi.id)
         return name
 
@@ -166,6 +170,7 @@ class Tracker(object):
         r = rospy.Rate(20)
         while not rospy.is_shutdown():
             self.publish_meshes()
+            self.publish_pois()
             r.sleep()
 
     def signal_handler(self, signal, frame):

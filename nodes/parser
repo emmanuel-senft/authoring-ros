@@ -104,6 +104,8 @@ class Parser(object):
         name = ""
         if poi.type == poi.SCREW:
             name = "screw:"
+        if poi.type == poi.EDGE:
+            name = "edge:"
         if poi.type == poi.HOLE:
             name = "hole:"
         if poi.type == poi.PUSHER:
