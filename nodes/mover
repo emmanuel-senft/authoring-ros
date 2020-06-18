@@ -27,6 +27,7 @@ class Mover(object):
         if not self._r_ik:
             self._sim_vel_pub = rospy.Publisher("/mover/cart_vel",Twist,queue_size=5)
         self._panda_vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=5)
+        self._event_pub = rospy.Publisher("/event",String,queue_size=5)
         self._cam_vel_pub = rospy.Publisher("/mover/cart_vel_cam",Twist,queue_size=5)
         self._panda_path_pub = rospy.Publisher("/panda/path",Path,queue_size=5)
 
@@ -102,8 +103,10 @@ class Mover(object):
             vel.linear.z = pose.position.z/d_t + self._fd_mod.linear.z
             vel.angular.x = angle[0]/d_t + self._fd_mod.angular.x
             vel.angular.y = angle[1]/d_t + self._fd_mod.angular.y
-            print("Publishing")
-            print(vel)
+            vel.angular.z = angle[2]/d_t + self._fd_mod.angular.z #Used to correct the orientation of the interface
+            #print("Publishing")
+            #print(vel)
+            self._event_pub.publish("z_or;"+str(qp.GetRPY()[2]+np.pi/2))
             self._cam_vel_pub.publish(vel)
 
     def on_goal(self, msg):
