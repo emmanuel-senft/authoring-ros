@@ -88,7 +88,7 @@ class VirtualCamera(object):
         if msg.data == "lock":
             self._locked = True
             self._flying = False
-            self._last_t = self._tfBuffer.lookup_transform("panda_link0","camera1", rospy.Time(0))
+            self._last_t = self._tfBuffer.lookup_transform("panda_link0","camera1", rospy.Time.now())
             self.publish_camera_pose()
 
         if msg.data == "unlock":

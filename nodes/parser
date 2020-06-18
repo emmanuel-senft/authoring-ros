@@ -16,9 +16,9 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import TransformStamped, PoseStamped, Point, Pose, PoseArray, Quaternion, Twist, Vector3
 from std_msgs.msg import ColorRGBA
 from authoring_msgs.msg import Action, Command, POI, POIArray
-import tf
 import copy
 from tf.transformations import quaternion_from_euler
+import tf
 import tf2_ros
 import tf2_geometry_msgs
 import PyKDL
@@ -369,7 +369,6 @@ class Parser(object):
             return
 
         if command_type == "reset_position":
-            print("here")
             self._panda_command.publish(String("release"))
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME

@@ -3,12 +3,15 @@ import rospy
 from sensor_msgs.msg import PointCloud2
 import numpy as np
 import sys
+import rospkg
 
 def sender():
     rospy.init_node('pc_sender')
     print("reading")
     msg = PointCloud2()
-    with open('/home/senft/pc2.txt', 'r') as infile:
+    rospack = rospkg.RosPack()
+    path = rospack.get_path('demo')+'/pc/pc.txt'
+    with open(path, 'rb') as infile:
         msg.deserialize(infile.read())
     msg.header.frame_id = 'static_camera_link'
     pub = rospy.Publisher("/static_points2",PointCloud2, queue_size =1, latch = True)

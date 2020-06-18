@@ -203,7 +203,6 @@ void on_vel_cam(const geometry_msgs::Twist::ConstPtr& msg){
   for (size_t i = 0; i < 6; i++) {
     q[i] = joints[i];
   }
-  cam_jacobian_array = camAutoJacobian(q);
   std::array<double, 5> velocity;
   velocity[0] = msg->linear.x;
   velocity[1] = msg->linear.y;
@@ -212,14 +211,13 @@ void on_vel_cam(const geometry_msgs::Twist::ConstPtr& msg){
   velocity[4] = msg->angular.y;
   Eigen::VectorXd v = Eigen::Map<Eigen::VectorXd>(velocity.data(), 5);
 
+  cam_jacobian_array = camAutoJacobian(q); 
   Eigen::VectorXd jointVelocities = Eigen::Map<Eigen::MatrixXd>(cam_jacobian_array.data(), 5, 6).completeOrthogonalDecomposition().solve(v);
 
-  cout<<"Here"<<endl;
   sensor_msgs::JointState state;
   state.velocity.resize(7);
   for (size_t i = 0; i < 6; i++) {
     state.velocity[i] = jointVelocities[i];
-    cout<<jointVelocities[i]<<endl;
   }
   state.velocity[6] = 0;
   angles_pub->publish(state);
@@ -255,8 +253,8 @@ int main(int argc, char **argv)
 
   angles_pub = new ros::Publisher(n.advertise<sensor_msgs::JointState>("/jacob/joint_vel", 10));
 
-  ros::Subscriber vel_sub = n.subscribe<geometry_msgs::Twist>("/mover/cart_vel", 10, on_vel);
-  ros::Subscriber cam_vel_sub = n.subscribe<geometry_msgs::Twist>("/mover/cart_vel_cam", 10, on_vel_cam);
+  ros::Subscriber vel_sub = n.subscribe<geometry_msgs::Twist>("/mover/cart_vel", 1, on_vel);
+  ros::Subscriber cam_vel_sub = n.subscribe<geometry_msgs::Twist>("/mover/cart_vel_cam", 1, on_vel_cam);
   ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/viz/joint_states", 10, on_joint);
 
   ros::spin();

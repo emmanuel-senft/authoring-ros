@@ -66,7 +66,7 @@ class Planner(object):
         ref_pose.header = action.poses.header
         ref_pose.pose = action.poses.poses[0]
         q = Quaternion(rot[0],rot[1],rot[2],rot[3])
-        print(ref_pose)
+        #print(ref_pose)
 
         if action.type == action.MOVE_OBJECT:
             a1 = Action()
@@ -453,7 +453,7 @@ class Planner(object):
         if current_action.type == self._plan[0].MOVE_FORCE:
             self._sel_vec_pub.publish(Vector3(1,1,0))
 
-        print(len(self._plan))
+        #print(len(self._plan))
 
     def update_plan(self):
         self.display_path()
@@ -467,7 +467,7 @@ class Planner(object):
             return
 
         current_action = self._plan[0]
-        print(self.get_type(current_action))
+        #print(self.get_type(current_action))
         if current_action.finished.data:
             self._event_pub.publish(String("action_finished;"+self.get_type(current_action)+":"+current_action.item.data))
             self.next_sub_action()
