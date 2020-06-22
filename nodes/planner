@@ -12,6 +12,7 @@ from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion,Vector3,Wrench
 from nav_msgs.msg import Path
 from std_msgs.msg import String, Bool
 from authoring_msgs.msg import Action,Command
+from sensor_msgs.msg import JointState
 
 REFERENCE_FRAME='panda_link0'
 ACTION_PICK=0
@@ -33,7 +34,11 @@ class Planner(object):
         self._force_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_force)
         self._event_sub = rospy.Subscriber("/event", String, self.on_event)
         self._fd_sub = rospy.Subscriber("/fd/button", Bool, self.on_fd)
-        
+
+        #For angle control
+        self._panda_angle_sub = rospy.Subscriber("/viz/joint_states", JointState, self.on_state, queue_size=1)
+        self._angle_pub = rospy.Publisher("/planner/joint_vel", JointState, queue_size = 5)
+
         self._plan = []
         self._running = False
         self._sim = False
@@ -44,6 +49,10 @@ class Planner(object):
         self._force = Vector3()
         self._inserting_factor = None
         self._plan_z = None
+        self._current_joint = None
+
+    def on_state(self, msg):
+        self._current_joint = msg
 
     def on_force(self, msg):
         self._force = msg.force
@@ -85,9 +94,12 @@ class Planner(object):
         if action.type == action.RESET:
             move = Action()
             move.finished.data = False
-            move.type = move.MOVE
-            move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move.pose.pose.orientation = q
+            move.type = move.MOVE_ANGLE
+            state = JointState()
+            state.position=[0., -0.5, 0., -1.8, 0., 1.31, 0.8]
+            #ref_pose.pose.orientation = q
+            #move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
+            move.joint_state = state
             plan.append(move)
 
         if action.type == action.VIEW:
@@ -480,6 +492,11 @@ class Planner(object):
             if self.go_to_position(current_action):
                 self.next_sub_action()
                 return
+
+        if current_action.type == current_action.MOVE_ANGLE:
+            if self.go_to_angle(current_action):
+                self.next_sub_action()
+                return
         if current_action.type == current_action.VIEW:
             self._camera_pub.publish(Bool(True))
             if self.view(current_action):
@@ -548,7 +565,27 @@ class Planner(object):
         goal.pose.position.y+=d_y
         self._goal_pub.publish(goal)        
 
-    
+    def go_to_angle(self, action):
+        diff = []
+        if self._current_joint is None:
+            return False
+        for i,joint in enumerate(action.joint_state.position):
+            diff.append(joint-self._current_joint.position[i])
+        max_diff = max(diff,key=abs)
+        print(max_diff)
+        threshold = .001
+        if np.fabs(max_diff) < threshold:
+            return True
+            
+        max_vel = .1
+
+        d_t = np.fabs(max_diff)/max_vel
+
+        vel = JointState()
+        vel.velocity = [v/d_t for v in diff]
+        self._angle_pub.publish(vel)
+        return False
+
     def view(self, action):
         goal = copy.deepcopy(action.pose)
         self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "cam_goal",REFERENCE_FRAME)
@@ -593,6 +630,7 @@ class Planner(object):
         goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(max(t_lin,t_rot))
         self._cam_goal_pub.publish(goal)
         return False
+
     def go_to_position(self, action):
         goal = copy.deepcopy(action.pose)
         self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "current_goal",REFERENCE_FRAME)

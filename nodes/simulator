@@ -38,7 +38,8 @@ class Simulator(object):
         self._pre_sim_joints = copy.deepcopy(self._current_joint)
         self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
         self._freq = 200
-        self._vel_sub = rospy.Subscriber(joint_topic, JointState, self.on_vel);
+        self._vel_sub = rospy.Subscriber(joint_topic, JointState, self.on_vel)
+        self._vel_sub2 = rospy.Subscriber("/planner/joint_vel", JointState, self.on_vel)
         self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command, queue_size = 1)
 
         #Panda State

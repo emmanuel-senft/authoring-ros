@@ -374,10 +374,17 @@ class Parser(object):
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = action.RESET
             pose = Pose()
-            pose.position.x = 0.25
-            pose.position.y = 0.
-            pose.position.z = 0.5
-            pose.orientation.w = 1
+            #pose.position.x = 0.35
+            #pose.position.y = 0.
+            #pose.position.z = 0.7
+            #pose.position.x = 0.3
+            #pose.position.y = 0.
+            #pose.position.z = 0.5
+            #q = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2)
+            #pose.orientation.x = q[0]
+            #pose.orientation.y = q[1]
+            #pose.orientation.z = q[2]
+            #pose.orientation.w = q[3]
             action.poses.poses.append(pose)
             cmd = Command()
             cmd.type = cmd.EXEC
@@ -450,10 +457,17 @@ class Parser(object):
                 action.type = action.RESET
                 action.poses.header.frame_id = REFERENCE_FRAME
                 pose = Pose()
-                pose.position.x = 0.25
-                pose.position.y = 0.
-                pose.position.z = 0.5
-                pose.orientation.w = 1
+                #pose.position.x = 0.35
+                #pose.position.y = 0.
+                #pose.position.z = 0.7
+                #pose.position.x = 0.3
+                #pose.position.y = 0.
+                #pose.position.z = 0.5
+                #q = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2)
+                #pose.orientation.x = q[0]
+                #pose.orientation.y = q[1]
+                #pose.orientation.z = q[2]
+                #pose.orientation.w = q[3]
                 action.poses.poses.append(pose)
     
             #elif cmd[0] == "Move":
