@@ -397,28 +397,32 @@ class Planner(object):
         return ""
 
     def on_command(self,msg):
-        print("new command")
         self._sel_vec_pub.publish(Vector3(1,1,1))
         self._type = msg.type
 
         if msg.type == msg.SIM:
             self._sim = True
             self._event_pub.publish(String("start_sim"))
-            self._running = True
-            rospy.sleep(.05)
-
-            self._plan = []
+            plan = []
             for sub_action in msg.core_action:
-                self.add_subaction(sub_action)
+                self.add_subaction(sub_action,plan)
+            self._plan = plan
+            self._running = True
+
+        if msg.type == msg.VIZ:
+            plan = []
+            for sub_action in msg.core_action:
+                self.add_subaction(sub_action,plan)
+            self._plan = plan
 
         if msg.type == msg.EXEC:
             self._sim = False
             self._event_pub.publish(String("start_exec"))
-            self._running = True
-
-            self._plan = []
+            plan = []
             for sub_action in msg.core_action:
-                self.add_subaction(sub_action)
+                self.add_subaction(sub_action,plan)
+            self._plan = plan
+            self._running = True
                 
         if msg.type == msg.EDIT:
             new_plan = []
