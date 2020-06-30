@@ -7,6 +7,7 @@ import signal
 import ros_numpy
 import sys
 from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from authoring_msgs.msg import POIArray
 import tf
@@ -20,11 +21,12 @@ class Filter(object):
     def __init__(self):
         self._tl = tf.TransformListener()
         rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
-        self._mesh_subtractor = PointCloudMeshFilter(['/home/senft/src/authoring-ros/meshes/screw2.stl'], ['screw'])
-        self._poi_sub = rospy.Subscriber("/pois", POIArray, self.on_poi, queue_size = 1)
+        #self._mesh_subtractor = PointCloudMeshFilter(['/home/senft/src/authoring-ros/meshes/screw2.stl'], ['screw'])
+        #self._poi_sub = rospy.Subscriber("/pois", POIArray, self.on_poi, queue_size = 1)
+        self._event_sub = rospy.Subscriber("/event", String, self.on_event, queue_size = 1)
         self._cloud_sub = rospy.Subscriber("/points2", PointCloud2, self.on_cloud, queue_size = 1)
         self._cloud_pub = rospy.Publisher("/filtered_cloud", PointCloud2, queue_size = 1)
-        self._pois = None
+        #self._pois = None
         self._freq = 1
         self._time_since_pub = rospy.Time.now()
         print("ready")
@@ -34,20 +36,28 @@ class Filter(object):
         print("got pois")
         self._pois = msg.poi_array
         
+    def on_event(self, msg):
+        if msg.data == "start_exec":
+            self._lock = True
+            print("Locking")
+        if msg.data == "motion_finished":
+            self._lock = False
+            print("Unlocking")
+
     def on_cloud(self, msg):
-        if (rospy.Time.now() - self._time_since_pub).to_sec() < 1/self._freq:
+        if self._lock or(rospy.Time.now() - self._time_since_pub).to_sec() < 1/self._freq:
             return
-        print("preparing")
-        if self._pois != None:
-            print("with pois")
-            cloud = ros_numpy.numpify(msg)
-
-            for p in self._pois:
-                p.pose = self._tl.transformPose(CAMERA_FRAME, p.pose)
-                #Modifying by reference
-                self.filter(cloud,p)
-
-            msg = ros_numpy.msgify(PoitCloud2, cloud)
+        #print("preparing")
+        #if self._pois != None:
+        #    print("with pois")
+        #    cloud = ros_numpy.numpify(msg)
+        #
+        #    for p in self._pois:
+        #        p.pose = self._tl.transformPose(CAMERA_FRAME, p.pose)
+        #        #Modifying by reference
+        #        self.filter(cloud,p)
+        #
+        #    msg = ros_numpy.msgify(PoitCloud2, cloud)
         self._cloud_pub.publish(msg)
         self._time_since_pub = rospy.Time.now()
 
