@@ -578,12 +578,11 @@ class Planner(object):
         for i,joint in enumerate(action.joint_state.position):
             diff.append(joint-self._current_joint.position[i])
         max_diff = max(diff,key=abs)
-        print(max_diff)
         threshold = .001
         if np.fabs(max_diff) < threshold:
             return True
             
-        max_vel = .1
+        max_vel = .3
 
         d_t = np.fabs(max_diff)/max_vel
 

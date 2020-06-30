@@ -78,7 +78,7 @@ class Filter(object):
         if p.type == p.SCREW:
             pose = p.pose.pose
             rot = np.array(tf.transformations.quaternion_matrix(self.get_vect(pose.orientation))[:3,:3])
-            print(rot.dtype
+            print(rot.dtype)
             pos =  np.array(self.get_vect(pose.position))
             print(pos.dtype)
             insts.append(MeshInstance('screw', pos,rot))
