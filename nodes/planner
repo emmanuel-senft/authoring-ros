@@ -50,6 +50,8 @@ class Planner(object):
         self._inserting_factor = None
         self._plan_z = None
         self._current_joint = None
+        self._gripper_acting = False
+        self._gripper_done = False
 
     def on_state(self, msg):
         self._current_joint = msg
@@ -66,6 +68,9 @@ class Planner(object):
             self._act = True
         if msg.data == "skip":
             self._skip = True
+        if msg.data == "grasping_done" or msg.data == "releasing_done":
+            self._gripper_done = True
+            self._gripper_acting = False
 
     def add_subaction(self, action, plan = None, sub_action = False):
         if plan is None:
@@ -478,8 +483,9 @@ class Planner(object):
         if len(self._plan) == 0:
             print("Finished")
             self._event_pub.publish(String("motion_finished"))
-
             self._running = False
+            self._gripper_done = False
+            self._gripper_acting = False
             return
 
         current_action = self._plan[0]
@@ -716,18 +722,26 @@ class Planner(object):
         return [(a+np.pi)%(2*np.pi)-np.pi for a in angle]
 
     def grasp(self):
-        cmd = String()
-        cmd.data = "grasp"
-        self._command_pub.publish(cmd)
-        rospy.sleep(2)
-        return True
+        if self._gripper_done:
+            self._gripper_done = False
+            return True
+        if not self._gripper_acting:
+            cmd = String()
+            cmd.data = "grasp"
+            self._command_pub.publish(cmd)
+            self._gripper_acting = True
+        return False
 
     def release(self):
-        cmd = String()
-        cmd.data = "release"
-        self._command_pub.publish(cmd)
-        rospy.sleep(1)
-        return True
+        if self._gripper_done:
+            self._gripper_done = False
+            return True
+        if not self._gripper_acting:
+            cmd = String()
+            cmd.data = "release"
+            self._command_pub.publish(cmd)
+            self._gripper_acting = True
+        return False
 
     def display_path(self):
         path = Path()

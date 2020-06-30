@@ -17,6 +17,7 @@
 
     <node pkg="authoring" type="simulator" name="simulator" output="screen">
         <param name="use_relaxed_ik" type="bool" value="false" />
+        <param name="only_virtual" value="$(arg only_virtual)" />
     </node>
     
     <node pkg="authoring" type="static_publisher" name="go_camera_static_publisher">

@@ -25,6 +25,7 @@ class Simulator(object):
         self._panda_pub = rospy.Publisher("/panda/joint_angles", JointState, queue_size = 5)
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
         self._event_sub = rospy.Subscriber("/event",String, self.on_event)
+        self._event_pub = rospy.Publisher("/event",String, queue_size=5)
 
 
         self._r_ik = rospy.get_param('~use_relaxed_ik')
@@ -48,6 +49,8 @@ class Simulator(object):
         #Publish init state for the robot
         self.init_states()
         self._init = False
+
+        self._virtual = rospy.get_param('~only_virtual')
 
     def init_states(self):
         joint = JointState()
@@ -105,17 +108,20 @@ class Simulator(object):
             self._sim = False
     
     def on_command(self, msg):
-        print("in")
-        if self._sim:
-            print("sim")
+        if self._sim or self._virtual:
             if msg.data == "grasp":
                 self._finger_val = 0.0
                 self._current_joint[-1] = self._finger_val
                 self._current_joint[-2] = self._finger_val
+                rospy.sleep(.5)
+                self._event_pub.publish("grasping_done")
+
             if msg.data == "release":
                 self._finger_val = .035
                 self._current_joint[-1] = self._finger_val
                 self._current_joint[-2] = self._finger_val
+                rospy.sleep(.5)
+                self._event_pub.publish("releasing_done")
 
     def on_state(self, msg):
         self._init = True
