@@ -10,7 +10,7 @@ def sender():
     print("reading")
     msg = PointCloud2()
     rospack = rospkg.RosPack()
-    path = rospack.get_path('demo')+'/pc/pc.txt'
+    path = rospack.get_path('authoring')+'/pc/pc.txt'
     with open(path, 'rb') as infile:
         msg.deserialize(infile.read())
     msg.header.frame_id = 'static_camera_link'
