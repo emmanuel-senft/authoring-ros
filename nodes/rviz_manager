@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+import roslib; roslib.load_manifest('authoring')
+
+## Then load sys to get sys.argv.
+import signal
+import sys
+import rospy
+from std_msgs.msg import String
+
+## Next import all the Qt bindings into the current namespace, for
+## convenience.  This uses the "python_qt_binding" package which hides
+## differences between PyQt and PySide, and works if at least one of
+## the two is installed.  The RViz Python bindings use
+## python_qt_binding internally, so you should use it here as well.
+from python_qt_binding.QtGui import *
+from python_qt_binding.QtCore import *
+try:
+    from python_qt_binding.QtWidgets import *
+except ImportError:
+    pass
+
+## Finally import the RViz bindings themselves.
+from rviz import bindings as rviz
+import rospkg
+
+## The MyViz class is the main container widget.
+class MyViz( QWidget ):
+    def __init__(self):
+        QWidget.__init__(self)
+        self._event_sub = rospy.Subscriber("/event", String, self.on_event)
+        ## rviz.VisualizationFrame is the main container widget of the
+        ## regular RViz application, with menus, a toolbar, a status
+        ## bar, and many docked subpanels. 
+        self.frame = rviz.VisualizationFrame()
+
+        ## The "splash path" is the full path of an image file which
+        ## gets shown during loading.  Setting it to the empty string
+        ## suppresses that behavior.
+        self.frame.setSplashPath( "" )
+
+        ## VisualizationFrame.initialize() must be called before
+        ## VisualizationFrame.load().  In fact it must be called
+        ## before most interactions with RViz classes because it
+        ## instantiates and initializes the VisualizationManager,
+        ## which is the central class of RViz.
+        self.frame.initialize()
+
+        ## The reader reads config file data into the config object.
+        ## VisualizationFrame reads its data from the config object.
+        reader = rviz.YamlConfigReader()
+        config = rviz.Config()
+        rospack = rospkg.RosPack()
+        path = rospack.get_path('authoring')+'/rviz/joint_viewer.rviz'
+
+        reader.readFile( config, path)
+        self.frame.load( config )
+
+        ## frame.getManager() returns the VisualizationManager
+        ## instance, which is a very central class.  It has pointers
+        ## to other manager objects and is generally required to make
+        ## any changes in an rviz instance.
+        self.manager = self.frame.getManager()
+     
+        ## Here we create the layout and other widgets in the usual Qt way.
+        layout = QVBoxLayout()
+        layout.addWidget( self.frame )
+    
+        self.setLayout( layout )
+        self.robot_model = self.manager.getRootDisplayGroup().getDisplayAt( 1 )
+
+    def on_event( self, msg ):
+        if msg.data == "start_edit":
+            self.robot_model.subProp( "Visual Enabled" ).setValue( False )
+        if msg.data == "stop_edit" or msg.data == "test":
+            self.robot_model.subProp( "Visual Enabled" ).setValue( True )
+            
+    def signal_handler(self, signal, frame):
+        QApplication.quit()
+
+if __name__ == '__main__':
+    rospy.init_node("rviz_manager")
+    app = QApplication( sys.argv )
+
+    myviz = MyViz()
+    myviz.resize(2000,2000)
+    myviz.show()
+    
+    #Allow python to capture keyboard interrup
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)
+    timer.start(100)
+    signal.signal(signal.SIGINT, myviz.signal_handler)
+
+    sys.exit(app.exec())
