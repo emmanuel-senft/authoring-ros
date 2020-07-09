@@ -51,6 +51,7 @@ class Mover(object):
         self._fd_sub = rospy.Subscriber("/fd/twist", Twist, self.on_fd)
 
         self._fd_mod = Twist()
+        self._pause = False
 
  
     def run(self):
@@ -67,17 +68,27 @@ class Mover(object):
             self._sim_vel_pub.publish(Twist())
             self._panda_vel_pub.publish(Twist())
         if cmd == "start_sim":
+            self._pause = False
             self._sim = True
             self._exec = False
         if cmd == "start_exec":
+            self._pause = False
             self._sim = False
             self._exec = True
         if cmd  == "wait":
             vel = Twist()
             self._sim_vel_pub.publish(vel)
             self._panda_vel_pub.publish(Twist())
+        if cmd == "play" or msg.data == "stop_edit":
+            self._pause = False
+        if cmd == "pause":
+            self._pause = True
+            self._sim_vel_pub.publish(Twist())
+            self._panda_vel_pub.publish(Twist())
  
     def on_cam_goal(self, msg):
+        if self._pause:
+            return
         if self._sim or (self._exec and self._virtual):
             cam_frame = "internal_rgb_camera_link"
             (trans,rot) = self._tl.lookupTransform("panda_link0", cam_frame, rospy.Time(0))
@@ -110,6 +121,8 @@ class Mover(object):
             self._cam_vel_pub.publish(vel)
 
     def on_goal(self, msg):
+        if self._pause:
+            return
         if self._sim or (self._exec and self._virtual):
             ee_frame = 'sim_end_effector'
             (trans,rot) = self._tl.lookupTransform("panda_link0", ee_frame, rospy.Time(0))

@@ -52,6 +52,7 @@ class Planner(object):
         self._current_joint = None
         self._gripper_acting = False
         self._gripper_done = False
+        self._pause = False
 
     def on_state(self, msg):
         self._current_joint = msg
@@ -64,6 +65,10 @@ class Planner(object):
             self.next_sub_action()
             
     def on_event(self, msg):
+        if msg.data == "pause":
+            self._pause = True
+        if msg.data == "play" or msg.data == "stop_edit":
+            self._pause = False
         if msg.data == "act":
             self._act = True
         if msg.data == "skip":
@@ -375,8 +380,6 @@ class Planner(object):
         p.pose.position.z += p0.position.z + ratio * (p1.position.z-p0.position.z)
         return p
 
-
-
     def get_distance(self, p0, p1):
         return np.sqrt((p0.position.x-p1.position.x)**2+(p0.position.y-p1.position.y)**2+(p0.position.z-p1.position.z)**2)
         
@@ -414,6 +417,7 @@ class Planner(object):
         return ""
 
     def on_command(self,msg):
+        self._pause = False
         self._sel_vec_pub.publish(Vector3(1,1,1))
         self._type = msg.type
 
@@ -443,6 +447,8 @@ class Planner(object):
                 
         if msg.type == msg.EDIT:
             new_plan = []
+            if len(msg.core_action) == 1:
+                return
             for sub_action in msg.core_action:
                 self.add_subaction(sub_action,new_plan)
             for i in range(len(new_plan)-len(self._plan)):
@@ -478,7 +484,7 @@ class Planner(object):
 
     def update_plan(self):
         self.display_path()
-        if not self._running:
+        if not self._running or self._pause:
             return
         if len(self._plan) == 0:
             print("Finished")

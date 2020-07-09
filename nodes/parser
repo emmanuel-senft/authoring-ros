@@ -55,6 +55,7 @@ class Parser(object):
         self._poi_sub = rospy.Subscriber("/world_state/pois", POIArray, self.on_poi, queue_size = 1)
         self._command_sub = rospy.Subscriber("/gui/command", String, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("/event", String, self.on_event, queue_size = 1)
+        self._event_pub = rospy.Publisher("/event", String, queue_size = 1)
         
         self._camera_t = None
         self._freq = 1
@@ -309,6 +310,12 @@ class Parser(object):
     def on_command(self, message):
         list_actions = message.data.split(";")
         command_type = list_actions[0]
+        if command_type == "pause":
+            self._event_pub.publish("pause")
+            return
+        if command_type == "play":
+            self._event_pub.publish("play")
+            return
         if command_type == 'init_gui' or command_type == "lock":
             self.publish_pois()
         if command_type == 'mouse':
