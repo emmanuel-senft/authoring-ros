@@ -53,6 +53,7 @@ class Planner(object):
         self._gripper_acting = False
         self._gripper_done = False
         self._pause = False
+        self._current_action_progress = []
 
     def on_state(self, msg):
         self._current_joint = msg
@@ -425,6 +426,7 @@ class Planner(object):
             self._sim = True
             self._event_pub.publish(String("start_sim"))
             plan = []
+            self._current_action_progress = []
             for sub_action in msg.core_action:
                 self.add_subaction(sub_action,plan)
             self._plan = plan
@@ -440,6 +442,7 @@ class Planner(object):
             self._sim = False
             self._event_pub.publish(String("start_exec"))
             plan = []
+            self._current_action_progress = []
             for sub_action in msg.core_action:
                 self.add_subaction(sub_action,plan)
             self._plan = plan
@@ -451,8 +454,9 @@ class Planner(object):
                 return
             for sub_action in msg.core_action:
                 self.add_subaction(sub_action,new_plan)
-            for i in range(len(new_plan)-len(self._plan)):
-                new_plan.pop(0)
+            for action_done in self._current_action_progress:
+                if action_done.type == new_plan[0].type and action_done.item == new_plan[0].item:
+                    new_plan.pop(0)
             self._plan = new_plan
         self.update_plan()
 
@@ -482,6 +486,10 @@ class Planner(object):
 
         #print(len(self._plan))
 
+    def action_finished(self,current_action):
+        self._current_action_progress.append(current_action)
+        self.next_sub_action()
+
     def update_plan(self):
         self.display_path()
         if not self._running or self._pause:
@@ -497,34 +505,35 @@ class Planner(object):
         current_action = self._plan[0]
         #print(self.get_type(current_action))
         if current_action.finished.data:
+            self._current_action_progress = []
             self._event_pub.publish(String("action_finished;"+self.get_type(current_action)+":"+current_action.item.data))
             self.next_sub_action()
             return
         if current_action.type == current_action.MOVE or current_action.type == current_action.INSERT or current_action.type == current_action.MOVE_FORCE:
             if self.go_to_position(current_action):
-                self.next_sub_action()
+                self.action_finished(current_action)
                 return
 
         if current_action.type == current_action.MOVE_ANGLE:
             if self.go_to_angle(current_action):
-                self.next_sub_action()
+                self.action_finished(current_action)
                 return
         if current_action.type == current_action.VIEW:
             self._camera_pub.publish(Bool(True))
             if self.view(current_action):
                 self._camera_pub.publish(Bool(False))
-                self.next_sub_action()
+                self.action_finished(current_action)
         if current_action.type == current_action.MOVE_TO_CONTACT:
             if self.go_to_position(current_action):
-                self.next_sub_action()
+                self.action_finished(current_action)
         if current_action.type == current_action.GRASP:
             if self.grasp():
                 self._event_pub.publish(String("grasped;"+current_action.item.data))
-                self.next_sub_action()
+                self.action_finished(current_action)
         if current_action.type == current_action.RELEASE:
             if self.release():
                 self._event_pub.publish(String("released;"+current_action.item.data))
-                self.next_sub_action()
+                self.action_finished(current_action)
         if current_action.type == current_action.WAIT:
             if self._skip:
                 print("skipping")
@@ -540,7 +549,7 @@ class Planner(object):
                 return
             elif self._act:
                 self._plan.pop(0)
-                self.next_sub_action()
+                self.action_finished(current_action)
                 self._act = False
             else:
                 pass
