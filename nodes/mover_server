@@ -1,0 +1,269 @@
+#! /usr/bin/env python3
+import rospy
+import actionlib
+import authoring_msgs.msg
+from panda_ros_msgs.msg import HybridPose
+from geometry_msgs.msg import PoseStamped, Pose, Wrench
+from std_msgs.msg import Bool, String
+import tf
+import tf2_ros
+import tf2_geometry_msgs
+import PyKDL
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Slerp
+
+import copy
+
+REFERENCE_FRAME = "panda_link0"
+
+class AuthoringAction(object):
+
+    def __init__(self, name):
+        self._action_name = name
+        self._as = actionlib.SimpleActionServer(self._action_name, authoring_msgs.msg.AuthoringAction, execute_cb=self.execute_cb, auto_start = False)
+        self._as.start()
+        self._freq = 1000
+        self._tfBuffer = tf2_ros.Buffer()
+        self._tl = tf2_ros.TransformListener(self._tfBuffer)
+        rospy.sleep(.5)
+        self._br = tf2_ros.TransformBroadcaster()
+        self._current_action = None
+        self._starting_time = None
+        self._starting_pose = None
+        self._waiting_for = None
+        self._wrench = None
+        self._search_theta = 0
+        self._push_force = -5
+        self._insert_progress = 0
+        self._inserting_factor = .02
+        # create messages that are used to publish feedback/result
+        self._feedback = authoring_msgs.msg.AuthoringFeedback()
+        self._result = authoring_msgs.msg.AuthoringResult()
+        self._pose_pub = rospy.Publisher("/panda/hybrid_pose", HybridPose, queue_size=5)
+        self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=5)
+        self._event_sub = rospy.Subscriber("/panda/events", String, self.on_event)
+        self._wrench_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_wrench)
+
+    def on_event(self, msg):
+        if msg.data == self._waiting_for:
+            self.success()
+
+    def on_wrench(self,msg):
+        self._wrench = msg
+
+    def execute_cb(self, goal):
+        self._current_action = None
+        self._waiting_for = None
+        self._starting_time = rospy.Time.now()
+        self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
+        if goal.goal.type == goal.goal.MOVE_FORCE or goal.goal.type == goal.goal.MOVE_TO_CONTACT:
+            goal.goal.pose.pose.position.z = self._starting_pose.pose.position.z
+        goal.goal.pose.header.stamp = self._starting_time + rospy.Duration(self.get_time_between_pose(self._starting_pose.pose, goal.goal.pose.pose))
+        self._current_action = goal.goal
+        r = rospy.Rate(self._freq)
+        while not rospy.is_shutdown() and self._current_action is not None:
+            self.update_command()
+            r.sleep()
+
+    def update_command(self):
+        if self._current_action and self._current_action.type == self._current_action.MOVE:
+            if self.go_to_position():
+                self.success()
+        elif self._current_action.type == self._current_action.GRASP:
+            self.grasp()
+        elif self._current_action.type == self._current_action.RELEASE:
+            self.release()
+        elif self._current_action.type == self._current_action.MOVE_TO_CONTACT:
+            if self.move_force():
+                self.success()
+        elif self._current_action.type == self._current_action.MOVE_FORCE:
+            if self.move_force():
+                self.success()
+        elif self._current_action.type == self._current_action.INSERT:
+            if self.insert():
+                self.success()
+        
+    def grasp(self):
+        if self._waiting_for is None:
+            self._waiting_for = "grasp_finished"
+            self._command_pub.publish("grasp")
+
+    def release(self):
+        if self._waiting_for is None:
+            self._waiting_for = "release_finished"
+            self._command_pub.publish("release")
+
+    # 3-step function: move to contact, search (if needed), push
+    def insert(self):
+        print(self._insert_progress)
+        if self._insert_progress == 0:
+            if self.move_force():
+                self._insert_progress = 1
+        if self._insert_progress == 1:
+            if self.search():
+                self._insert_progress = 2
+        if self._insert_progress == 2:
+            if self.go_to_position():
+                return True
+        return False
+
+    def search(self):
+        action = self._current_action
+        coils = 7
+        radius = .03
+        v=.02#cm/s
+        theta_max = 2*np.pi*coils
+        step = radius/theta_max
+        chord = v/self._freq
+        if self._search_theta == 0:
+            self._search_theta = chord/step
+
+        if self._wrench.force.z > self._push_force/2:
+            self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
+            action.pose.pose = copy.deepcopy(self._starting_pose.pose)
+            action.pose.pose.position.z -= self._inserting_factor
+            action.pose.header.stamp = self._starting_time + rospy.Duration(self.get_time_between_pose(self._starting_pose.pose, action.pose.pose))
+            return True
+            
+        away = step*self._search_theta
+        d_x = np.cos(self._search_theta)*away
+        d_y = np.sin(self._search_theta)*away
+        self._search_theta+=chord/away
+
+        pose = HybridPose()
+        pose.pose.position.x = action.pose.pose.position.x+d_x
+        pose.pose.position.y = action.pose.pose.position.y+d_y
+        pose.pose.orientation.w = 1
+        pose.sel_vector=[1,1,0,0,0,0]
+        pose.wrench.force.z = self._push_force
+        pose.constraint_frame.w = 1
+        self._pose_pub.publish(pose)
+        return False
+
+    def move_force(self):
+        action = self._current_action
+        goal = HybridPose()
+        goal.sel_vector = [1,1,0,0,0,0]
+        goal.constraint_frame.w=1
+
+        ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+        linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
+        linear[2] = 0
+        linear_threshold = .001
+        angular_threshold = .01
+        force_threshold = self._push_force/2
+        if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold) and self._wrench.force.z < force_threshold:
+            return True
+        else: 
+            progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
+            goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
+            goal.wrench.force.z = self._push_force
+            self._pose_pub.publish(goal)
+        return False
+
+    def go_to_position(self):
+        action = self._current_action
+        goal = HybridPose()
+        goal.sel_vector = [1,1,1,0,0,0]
+        goal.constraint_frame.w=1
+        
+        ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+        linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
+
+        linear_threshold = .001
+        angular_threshold = .01
+        if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold):
+            return True
+        else:
+            progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
+            goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
+            self._pose_pub.publish(goal)
+        return False
+
+    def success(self):
+        self._result.success = Bool(True)
+        self._as.set_succeeded(self._result)
+        self._current_action = None
+        self._search_theta = 0
+        self._insert_progress = 0
+
+###### Helper functions ######
+
+    def get_time_between_pose(self, start, end):
+        linear,angular = self.get_diff_poses(start,end)
+        max_v_lin = .12
+        max_v_ang = .6
+        t_lin = np.sqrt(np.sum(linear**2)) / max_v_lin
+        t_ang = max(np.fabs(angular))/max_v_ang
+        return max(t_lin,t_ang)
+        
+    def get_diff_poses(self,p1, p2):
+        linear = np.array([p1.position.x-p2.position.x, p1.position.y-p2.position.y, p1.position.z-p2.position.z])
+        qp1 = PyKDL.Rotation.Quaternion(p1.orientation.x,p1.orientation.y,p1.orientation.z,p1.orientation.w)
+        qp2 = PyKDL.Rotation.Quaternion(p2.orientation.x,p2.orientation.y,p2.orientation.z,p2.orientation.w)
+        qd = qp1*qp2.Inverse()
+        a1 = qp1.GetRPY()
+        ad = qd.GetRPY()
+        angular = np.array(ad)
+        d = a1[2] + ad[2]
+        if d > np.pi:
+            angular[2] -= 2 * np.pi
+        if d < -np.pi:
+            angular[2] += 2 * np.pi 
+        return (linear,angular)
+    
+    
+    def get_diff_pose_trans(self,pose, t):
+        trans = t.transform.translation
+        rot = t.transform.rotation
+        linear = np.array([pose.position.x-trans.x, pose.position.y-trans.y, pose.position.z-trans.z])
+        qp = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+        current_angle = qp.GetRPY()
+        rot = pose.orientation
+        qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+        q = qg*qp.Inverse()
+        difference_angle = q.GetRPY()
+        angular = np.array(difference_angle)
+        d = current_angle[2] + difference_angle[2]
+        if d > np.pi:
+            angular[2] -= 2 * np.pi
+        if d < -np.pi:
+            angular[2] += 2 * np.pi 
+        return (linear,angular)
+    
+    def get_pose_from_trans(self,t):
+        p=PoseStamped()
+        p.header=t.header
+        p.pose.position.x = t.transform.translation.x
+        p.pose.position.y = t.transform.translation.y
+        p.pose.position.z = t.transform.translation.z
+        p.pose.orientation.x = t.transform.rotation.x
+        p.pose.orientation.y = t.transform.rotation.y
+        p.pose.orientation.z = t.transform.rotation.z
+        p.pose.orientation.w = t.transform.rotation.w
+        return p
+
+    def interpolate_poses(self, p1, p2, ratio):
+        pose = Pose()
+        pose.position.x = p1.position.x+(p2.position.x-p1.position.x)*ratio
+        pose.position.y = p1.position.y+(p2.position.y-p1.position.y)*ratio
+        pose.position.z = p1.position.z+(p2.position.z-p1.position.z)*ratio
+        q1 = [p1.orientation.x,p1.orientation.y,p1.orientation.z,p1.orientation.w]
+        q2 = [p2.orientation.x,p2.orientation.y,p2.orientation.z,p2.orientation.w]
+        key_rots = R.from_quat([q1,q2])
+        key_times = [0, 1]
+        slerp = Slerp(key_times, key_rots)
+        interp_rots = slerp([ratio]).as_quat()[0]
+        pose.orientation.x = interp_rots[0]
+        pose.orientation.y = interp_rots[1]
+        pose.orientation.z = interp_rots[2]
+        pose.orientation.w = interp_rots[3]
+        return pose
+
+if __name__ == '__main__':
+    rospy.init_node('mover_server')
+    mover = AuthoringAction('mover_server')
+    rospy.spin()
