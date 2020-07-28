@@ -4,13 +4,16 @@ import signal
 import sys
 import math
 import tf
+import tf2_ros
 import PyKDL
 import copy
 
 from std_msgs.msg import String
 from nav_msgs.msg import Path
+
+from panda_ros_msgs.msg import HybridPose, JointPose
 from sensor_msgs.msg import JointState
-from panda_ros_msgs.msg import JointPose
+from geometry_msgs.msg import Twist
 
 import numpy as np 
 
@@ -18,41 +21,58 @@ REFERENCE_FRAME='panda_link0'
 
 class Simulator(object):
     def __init__(self):
-        self._tl = tf.TransformListener()
+        self._tfBuffer = tf2_ros.Buffer()
+        self._tl = tf2_ros.TransformListener(self._tfBuffer)
         self._br = tf.TransformBroadcaster()
-
+    
         #Rviz value
-        self._viz_pub = rospy.Publisher("/viz/joint_states", JointState, queue_size = 5)
-        self._panda_pub = rospy.Publisher("/panda/joint_angles", JointState, queue_size = 5)
+        self._viz_pub = rospy.Publisher("/simulator/joint_states", JointState, queue_size = 5)
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
         self._event_sub = rospy.Subscriber("/event",String, self.on_event)
-        self._event_pub = rospy.Publisher("/event",String, queue_size=5)
-
-
-        self._r_ik = rospy.get_param('~use_relaxed_ik')
-        joint_topic = ("/r_ik_wrapper" if self._r_ik else "/jacob")+"/joint_vel"
+        self._pose_sub = rospy.Subscriber("/simulator/hybrid_pose", HybridPose, self.on_pose)
+        self._event_pub = rospy.Publisher("/simulator/events", String, queue_size=5)
+        
         #Simulator State
         #self._angle_sub = rospy.Subscriber("/relaxed_ik/joint_angle_solutions", JointState, self.on_solution, queue_size=1)
         self._sim = False
         self._init = False
         self._finger_val = .035
         self._current_joint = [0.0,-0.4,0.0,-2.0,0.0,1.6,0.8,self._finger_val,self._finger_val]
+        self._starting_joint = self._current_joint
+        self._starting_time = rospy.Time.now()
         self._pre_sim_joints = copy.deepcopy(self._current_joint)
         self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
-        self._freq = 200
-        self._vel_sub = rospy.Subscriber(joint_topic, JointState, self.on_vel)
-        self._vel_sub2 = rospy.Subscriber("/mover/joint_pose", JointPose, self.on_joint)
-        self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command, queue_size = 1)
-
+        self._freq = 1000
+        self._vel_sub = rospy.Subscriber("/jacob/joint_vel", JointPose, self.on_vel)
+        self._vel_sub2 = rospy.Subscriber("/simulator/joint_pose", JointPose, self.on_joint)
+        self._command_sub = rospy.Subscriber("/simulator/commands", String, self.on_command, queue_size = 1)
+        self._cart_vel_pub = rospy.Publisher("/simulator/cart_vel", Twist, queue_size=5)
         #Panda State
         self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
 
         #Publish init state for the robot
         self.init_states()
         self._init = False
-        self._desired_pose = None
+        self._desired_joint_pose = None
 
         self._virtual = rospy.get_param('~only_virtual')
+
+    #Serious scaling issue...
+    def on_pose(self, msg):
+        goal = msg.pose
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "sim_end_effector", rospy.Time(0))
+        if msg.sel_vector[2] == 0:
+            goal.position.z = t.transform.translation.z - .01#/self._freq
+        
+        linear,angular = self.get_diff_pose_trans(goal,t)
+        vel = Twist()
+        vel.linear.x =  linear[0]
+        vel.linear.y =  linear[1]
+        vel.linear.z =  linear[2]
+        vel.angular.x = angular[0]
+        vel.angular.y = angular[1]
+        vel.angular.z = angular[2]
+        self._cart_vel_pub.publish(vel)
 
     def init_states(self):
         joint = JointState()
@@ -62,7 +82,7 @@ class Simulator(object):
         self._viz_pub.publish(joint)
 
     def on_vel(self,msg):
-        for i,v in enumerate(msg.velocity):
+        for i,v in enumerate(msg.joint_pose):
             self._current_velocity[i]=v
 
     def run(self):
@@ -73,20 +93,20 @@ class Simulator(object):
 
     def move(self):
         if self._sim or not self._init:
-            if self._desired_pose is not None:
-                d_t = self._desired_pose.header.stamp.to_sec() - rospy.Time.now().to_sec()
-                desired_joint = self._desired_pose+[self._current_joint[-2],self._current_joint[-1]]
+            if self._desired_joint_pose is not None:
+                progress = min(1,(rospy.Time.now() -self._starting_time).to_sec()/(self._desired_joint_pose.header.stamp - self._starting_time).to_sec())
+                
+                desired_joint = list(self._desired_joint_pose.joint_pose)+[self._current_joint[-2],self._current_joint[-1]]
                 joint = JointState()
                 joint.header.stamp = rospy.Time.now()
                 joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
-                if d_t<0:
-                    joint.position = desired_joint
-                    self._desired_pose = None
-                else:
-                    joint.position = list(self._current_joint+(desired_joint-self._current_joint)/(d_t*self._freq))
+                self._current_joint = [s+progress*(d-s) for s,d in zip(self._starting_joint,desired_joint)]
+                joint.position = self._current_joint
                 self._viz_pub.publish(joint)
+                if progress == 1:
+                    self._desired_joint_pose = None
                 return    
-                
+
             for i,v in enumerate(self._current_velocity):
                 self._current_joint[i]+=v/self._freq
             joint = JointState()
@@ -94,18 +114,11 @@ class Simulator(object):
             joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
             joint.position = list(self._current_joint)
             self._viz_pub.publish(joint)
-        else:
-            desired_joint = copy.deepcopy(self._current_joint)
-            for i,v in enumerate(self._current_velocity):
-                desired_joint[i]+=80*v/self._freq
-            #TODO update
-            #joint = JointAngles()
-            #joint.header.stamp = rospy.Time.now()
-            #joint.angles.data = list(desired_joint)
-            #self._panda_pub.publish(joint)
 
     def on_joint(self, msg):
-        self._desired_pose = msg
+        self._desired_joint_pose = msg
+        self._starting_joint = copy.deepcopy(self._current_joint)
+        self._starting_time = rospy.Time.now()
 
     def on_event(self, msg):
         cmd = msg.data.split(";")[0]
@@ -126,20 +139,19 @@ class Simulator(object):
             self._sim = False
     
     def on_command(self, msg):
-        if self._sim or self._virtual:
-            if msg.data == "grasp":
-                self._finger_val = 0.0
-                self._current_joint[-1] = self._finger_val
-                self._current_joint[-2] = self._finger_val
-                rospy.sleep(.5)
-                self._event_pub.publish("grasping_done")
+        if msg.data == "grasp":
+            self._finger_val = 0.0
+            self._current_joint[-1] = self._finger_val
+            self._current_joint[-2] = self._finger_val
+            rospy.sleep(.5)
+            self._event_pub.publish("grasp_finished")
 
-            if msg.data == "release":
-                self._finger_val = .035
-                self._current_joint[-1] = self._finger_val
-                self._current_joint[-2] = self._finger_val
-                rospy.sleep(.5)
-                self._event_pub.publish("releasing_done")
+        if msg.data == "release":
+            self._finger_val = .035
+            self._current_joint[-1] = self._finger_val
+            self._current_joint[-2] = self._finger_val
+            rospy.sleep(.5)
+            self._event_pub.publish("release_finished")
 
     def on_state(self, msg):
         self._init = True
@@ -151,6 +163,24 @@ class Simulator(object):
         
     def signal_handler(self, signal, frame):
         sys.exit(0)
+
+    def get_diff_pose_trans(self,pose, t):
+        trans = t.transform.translation
+        rot = t.transform.rotation
+        linear = np.array([pose.position.x-trans.x, pose.position.y-trans.y, pose.position.z-trans.z])
+        qp = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+        current_angle = qp.GetRPY()
+        rot = pose.orientation
+        qg = PyKDL.Rotation.Quaternion(rot.x,rot.y,rot.z,rot.w)
+        q = qg*qp.Inverse()
+        difference_angle = q.GetRPY()
+        angular = np.array(difference_angle)
+        d = current_angle[2] + difference_angle[2]
+        if d > np.pi:
+            angular[2] -= 2 * np.pi
+        if d < -np.pi:
+            angular[2] += 2 * np.pi 
+        return (linear,angular)
 
 if __name__ == "__main__":
     rospy.init_node("simulator")

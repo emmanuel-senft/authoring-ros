@@ -14,7 +14,7 @@ def sender():
     with open(path, 'rb') as infile:
         msg.deserialize(infile.read())
     msg.header.frame_id = 'static_camera_link'
-    pub = rospy.Publisher("/static_points2",PointCloud2, queue_size =1, latch = True)
+    pub = rospy.Publisher("/filtered_cloud",PointCloud2, queue_size =1, latch = True)
     pub.publish(msg)
     rospy.spin()
 

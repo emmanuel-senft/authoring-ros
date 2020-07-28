@@ -23,7 +23,8 @@ import threading
 
 REFERENCE_FRAME='panda_link0'
 CLIENT_ACTIVE=1
-
+SIM = True
+EXEC = False
 class Planner(object):
     def __init__(self):
         self._tl = tf.TransformListener()
@@ -89,7 +90,7 @@ class Planner(object):
             self._gripper_done = True
             self._gripper_acting = False
 
-    def add_subaction(self, action, plan = None, sub_action = False):
+    def add_subaction(self, action, sim, plan = None, sub_action = False):
         if plan is None:
             plan = self._plan
         rot = tf.transformations.quaternion_from_euler(0,0,0)
@@ -100,21 +101,21 @@ class Planner(object):
         #print(ref_pose)
 
         if action.type == action.MOVE_OBJECT:
-            a1 = Action()
+            a1 = Action(sim=Bool(sim))
             a1.type = a1.PICK
             a1.item = String(action.item.data.split('-')[0])
             a1.poses.header = action.poses.header
             a1.poses.poses.append(action.poses.poses[0])
-            self.add_subaction(a1,plan,sub_action=True)
-            a2 = Action()
+            self.add_subaction(a1,sim,plan,sub_action=True)
+            a2 = Action(sim=Bool(sim))
             a2.type = a2.PLACE
             a2.item = a1.item
             a2.poses.header = action.poses.header
             a2.poses.poses.append(action.poses.poses[1])
-            self.add_subaction(a2,plan,sub_action=True)
+            self.add_subaction(a2,sim,plan,sub_action=True)
 
         if action.type == action.RESET:
-            move = Action()
+            move = Action(sim=Bool(sim))
             move.finished.data = False
             move.type = move.MOVE_ANGLE
             state = JointState()
@@ -125,7 +126,7 @@ class Planner(object):
             plan.append(move)
 
         if action.type == action.VIEW:
-            move = Action()
+            move = Action(sim=Bool(sim))
             move.finished.data = False
             move.type = move.VIEW
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -138,7 +139,7 @@ class Planner(object):
             plan.append(move)
 
         if action.type == action.MOVE:
-            move = Action()
+            move = Action(sim=Bool(sim))
             move.finished.data = False
             move.type = move.MOVE
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -147,7 +148,7 @@ class Planner(object):
 
         if action.type == action.PICK:
             #print("pick")
-            move_above = Action()
+            move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -157,7 +158,7 @@ class Planner(object):
             if not sub_action:
                 move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z -= .003
-            grasp = Action()
+            grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = action.item
@@ -168,14 +169,14 @@ class Planner(object):
 
         if action.type == action.INSPECT:
             #print("inspect")
-            move_above = Action()
+            move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.VIEW
             move_above.poses = copy.deepcopy(action.poses)
             move_above.poses.poses[0].position.z += .35
             move_above.item = action.item
-            self.add_subaction(move_above,plan,sub_action=True)
-            wait = Action()
+            self.add_subaction(move_above,sim,plan,sub_action=True)
+            wait = Action(sim=Bool(sim))
             wait.finished.data = False
             wait.type = wait.WAIT
             wait.item = action.item
@@ -183,7 +184,7 @@ class Planner(object):
         
         if action.type == action.STOP:
             #print("stop")
-            move = Action()
+            move = Action(sim=Bool(sim))
             move.finished.data = False
             move.type = move.MOVE
             move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -192,7 +193,7 @@ class Planner(object):
         
         if action.type == action.PLACE:
             #print("place")
-            move_above = Action()
+            move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -206,7 +207,7 @@ class Planner(object):
             move_to.type = move_to.INSERT
             move_to.pose.pose.position.z+=.01
             move_safe = copy.deepcopy(move_above)
-            release = Action()
+            release = Action(sim=Bool(sim))
             release.finished.data = False
             release.type = release.RELEASE
             release.item = action.item
@@ -218,11 +219,11 @@ class Planner(object):
 
         if action.type == action.PUSH:
             # "Push"
-            grasp = Action()
+            grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = String("none")
-            move_above = Action()
+            move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -231,7 +232,7 @@ class Planner(object):
             move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z+=.02
             move_safe = copy.deepcopy(move_above)
-            release = Action()
+            release = Action(sim=Bool(sim))
             release.finished.data = False
             release.type = release.RELEASE
             release.item = String("none")
@@ -250,7 +251,7 @@ class Planner(object):
             rot = tf.transformations.quaternion_from_euler(0,0,angle)
             q_minus = Quaternion(rot[0],rot[1],rot[2],rot[3])
  
-            move_above = Action()
+            move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -259,7 +260,7 @@ class Planner(object):
             move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z+=.005
 
-            grasp = Action()
+            grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = action.item
@@ -293,7 +294,7 @@ class Planner(object):
             rot = tf.transformations.quaternion_from_euler(0,0,angle)
             q_minus = Quaternion(rot[0],rot[1],rot[2],rot[3])
  
-            move_above = Action()
+            move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
@@ -302,7 +303,7 @@ class Planner(object):
             move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z-=.00
 
-            grasp = Action()
+            grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = action.item
@@ -334,7 +335,7 @@ class Planner(object):
             p2 = action.poses.poses[2]
             p3 = action.poses.poses[3]
 
-            move_above = Action()
+            move_above = Action(sim=Bool(sim))
             move_above.type = move_above.MOVE
             move_above.finished.data = False
             move_above.pose.pose = copy.deepcopy(p0)
@@ -353,7 +354,7 @@ class Planner(object):
             for i in range(int(n+1)):
                 p_l.append(self.point_toward(p0,p3,i/n))
                 p_r.append(self.point_toward(p1,p2,i/n))
-            base_move = Action()
+            base_move = Action(sim=Bool(sim))
             base_move.type = base_move.MOVE_FORCE
             base_move.finished.data = False
             for i in range(int(n)):
@@ -370,7 +371,7 @@ class Planner(object):
             move_above.pose = copy.deepcopy(move.pose)
             move_above.pose.pose.position.z += .10
             plan.append(move_above)
-            release = Action()
+            release = Action(sim=Bool(sim))
             release.finished.data = False
             release.type = release.RELEASE
             release.item = String("none")
@@ -445,14 +446,14 @@ class Planner(object):
             plan = []
             self._current_action_progress = []
             for sub_action in msg.core_action:
-                self.add_subaction(sub_action,plan)
+                self.add_subaction(sub_action,SIM,plan)
             self._plan = plan
             self._running = True
 
         if msg.type == msg.VIZ:
             plan = []
             for sub_action in msg.core_action:
-                self.add_subaction(sub_action,plan)
+                self.add_subaction(sub_action,SIM,plan)
             self._plan = plan
 
         if msg.type == msg.EXEC:
@@ -461,7 +462,7 @@ class Planner(object):
             plan = []
             self._current_action_progress = []
             for sub_action in msg.core_action:
-                self.add_subaction(sub_action,plan)
+                self.add_subaction(sub_action,EXEC,plan)
             self._plan = plan
             self._running = True
                 
@@ -470,7 +471,7 @@ class Planner(object):
             if len(msg.core_action) == 1:
                 return
             for sub_action in msg.core_action:
-                self.add_subaction(sub_action,new_plan)
+                self.add_subaction(sub_action,self._plan[0].sim.data,new_plan)
             for action_done in self._current_action_progress:
                 if action_done.type == new_plan[0].type and action_done.item == new_plan[0].item:
                     starting+=1

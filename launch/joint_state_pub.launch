@@ -13,7 +13,7 @@
     <!-- Robot state publisher    -->
     <arg name="node_start_delay" default="1.0" />  
     <node pkg="robot_state_publisher" type="robot_state_publisher" name="panda_state_publisher" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " output="screen">
-    <remap from="joint_states" to="/viz/joint_states"/>
+    <remap from="joint_states" to="/simulator/joint_states"/>
         <param name="publish_frequency" type="double" value="1000.0" />
     </node>
 

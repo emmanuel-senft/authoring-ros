@@ -6,8 +6,7 @@
     <node pkg="authoring" type="tracker" name="tracker"/>
     <node pkg="authoring" type="poi" name="poi"/> 
 
-    <node pkg="authoring" type="mover" name="mover">
-        <param name="use_relaxed_ik" type="bool" value="$(arg use_relaxed_ik)" />
+    <node pkg="authoring" type="mover_server" name="mover_server" output="screen">
         <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
     </node>
 

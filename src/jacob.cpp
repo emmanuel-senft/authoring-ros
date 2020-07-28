@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <sensor_msgs/JointState.h>
+#include <panda_ros_msgs/JointPose.h>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
 #include <iostream>
@@ -197,13 +198,13 @@ void on_vel_cam(const geometry_msgs::Twist::ConstPtr& msg){
   //auto duration = duration_cast<microseconds>(stop - start); 
   //cout << duration.count() <<" us" << endl; 
 
-  sensor_msgs::JointState state;
-  state.velocity.resize(7);
+  panda_ros_msgs::JointPose pose;
+  pose.joint_pose.resize(7);
   for (size_t i = 0; i < 6; i++) {
-    state.velocity[i] = jointVelocities[i];
+    pose.joint_pose[i] = jointVelocities[i];
   }
-  state.velocity[6] = 0;
-  angles_pub->publish(state);
+  pose.joint_pose[6] = 0;
+  angles_pub->publish(pose);
 }
 
 void on_vel(const geometry_msgs::Twist::ConstPtr& msg){
@@ -223,12 +224,12 @@ void on_vel(const geometry_msgs::Twist::ConstPtr& msg){
   //auto duration = duration_cast<microseconds>(stop - start); 
   //cout << duration.count() <<" us" << endl; 
 
-  sensor_msgs::JointState state;
-  state.velocity.resize(7);
+  panda_ros_msgs::JointPose pose;
+  pose.joint_pose.resize(7);
   for (size_t i = 0; i < 7; i++) {
-    state.velocity[i] = jointVelocities[i];
+    pose.joint_pose[i] = jointVelocities[i];
   }
-  angles_pub->publish(state);
+  angles_pub->publish(pose);
 }
 
 int main(int argc, char **argv)
@@ -237,11 +238,11 @@ int main(int argc, char **argv)
 
   ros::NodeHandle n;
 
-  angles_pub = new ros::Publisher(n.advertise<sensor_msgs::JointState>("/jacob/joint_vel", 10));
+  angles_pub = new ros::Publisher(n.advertise<panda_ros_msgs::JointPose>("/jacob/joint_vel", 10));
 
-  ros::Subscriber vel_sub = n.subscribe<geometry_msgs::Twist>("/mover/cart_vel", 1, on_vel);
-  ros::Subscriber cam_vel_sub = n.subscribe<geometry_msgs::Twist>("/mover/cart_vel_cam", 1, on_vel_cam);
-  ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/viz/joint_states", 10, on_joint);
+  ros::Subscriber vel_sub = n.subscribe<geometry_msgs::Twist>("/simulator/cart_vel", 1, on_vel);
+  ros::Subscriber cam_vel_sub = n.subscribe<geometry_msgs::Twist>("/simulator/cart_vel_cam", 1, on_vel_cam);
+  ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/simulator/joint_states", 10, on_joint);
 
   ros::spin();
   return 0;
