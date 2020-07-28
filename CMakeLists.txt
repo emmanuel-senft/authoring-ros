@@ -63,7 +63,7 @@ set(LIBS
 
 add_executable(pandaJacob src/jacob.cpp)
 target_include_directories(pandaJacob PUBLIC adept${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR} /home/senft/catkin_ws/devel/include )
-target_link_libraries(pandaJacob adept
+target_link_libraries(pandaJacob
    ${catkin_LIBRARIES}
 )
 #############

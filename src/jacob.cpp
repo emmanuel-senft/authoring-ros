@@ -9,7 +9,6 @@
 #include <Eigen/Core>
 
 using namespace std;
-using namespace std::chrono; 
 
 array<double,42> jacobian_array;
 array<double,30> cam_jacobian_array;
