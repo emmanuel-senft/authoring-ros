@@ -3,8 +3,9 @@
     <arg name="rgb_point_cloud" default="true"/>
     <arg name="with_utils" default="true"/>
     <arg name="use_static_cloud" default="false"/>
-    <arg name="use_real_kinect" default="false"/>
-    <arg name="only_virtual" default="true"/>
+    <arg name="use_real_kinect" default="true"/>
+    <arg name="local_kinect" default="false"/>
+    <arg name="only_virtual" default="false"/>
 
     <group if="$(arg use_static_cloud)">
         <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
@@ -37,16 +38,21 @@
         </node>
     </group>
 
-    <group if="$(arg use_real_kinect)">
+    
+    <group if="$(arg local_kinect)">
         <include file="$(find authoring)/launch/kinect.launch">
             <arg name="rgb_point_cloud" default="$(arg rgb_point_cloud)"/>
             <arg name="tf_prefix" default="internal_"/>
         </include>
+    </group>
 
+    <group if="$(arg use_real_kinect)">
         <node pkg="authoring" type="static_publisher" name="rgb_camera_static_publisher">
             <param name="file_name" type="string" value="transforms.yaml" />
             <param name="transform" type="string" value="rgb_camera_transform" />
         </node>
+        <node pkg="authoring" type="cloud_filter" name="cloud_filter"/>
+
     </group>
 
     <group unless="$(arg use_real_kinect)">

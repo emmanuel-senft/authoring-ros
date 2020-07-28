@@ -54,7 +54,7 @@ class Poi(object):
         off_z=-.015
         for i in range(6):
             for j in range(5):
-                if ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 3) and (j == 2)):
+                if ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 2) and (j == 1 or j==3)) or (i==4 and j==2):
                     poi = copy.deepcopy(poi_init)
                     poi.pose.pose.position.x+=off_x+.036*i+.001*j
                     poi.pose.pose.position.y+=off_y+.041*j

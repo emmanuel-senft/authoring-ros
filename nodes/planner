@@ -7,37 +7,27 @@ import tf
 import PyKDL
 import copy
 import numpy as np
+import actionlib
 
 from geometry_msgs.msg import Twist,Pose,PoseStamped,Quaternion,Vector3,Wrench
 from nav_msgs.msg import Path
 from std_msgs.msg import String, Bool
-from authoring_msgs.msg import Action,Command
+
 from sensor_msgs.msg import JointState
+from panda_ros_msgs.msg import JointPose, HybridPose
+
+from authoring_msgs.msg import Action,Command
+import authoring_msgs.msg
+
+import threading
 
 REFERENCE_FRAME='panda_link0'
-ACTION_PICK=0
-ACTION_PLACE=1
+CLIENT_ACTIVE=1
 
 class Planner(object):
     def __init__(self):
         self._tl = tf.TransformListener()
         self._br = tf.TransformBroadcaster()
-        rospy.sleep(2.5) # sleep a bit to make sure the TF cache is filled
-        self._path_pub = rospy.Publisher("/planner/path", Path, queue_size=0)
-        self._camera_pub = rospy.Publisher("/panda/camera_control", Bool, queue_size=0)
-        self._goal_pub = rospy.Publisher("/planner/goal_pose", PoseStamped, queue_size=5)
-        self._cam_goal_pub = rospy.Publisher("/planner/cam_goal_pose", PoseStamped, queue_size=5)
-        self._command_sub = rospy.Subscriber("/parser/command", Command, self.on_command)
-        self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
-        self._command_pub = rospy.Publisher("/planner/command", String, queue_size=1)
-        self._sel_vec_pub = rospy.Publisher("/panda/selection_vector", Vector3, queue_size=1)
-        self._force_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_force)
-        self._event_sub = rospy.Subscriber("/event", String, self.on_event)
-        self._fd_sub = rospy.Subscriber("/fd/button", Bool, self.on_fd)
-
-        #For angle control
-        self._panda_angle_sub = rospy.Subscriber("/viz/joint_states", JointState, self.on_state, queue_size=1)
-        self._angle_pub = rospy.Publisher("/planner/joint_vel", JointState, queue_size = 5)
 
         self._plan = []
         self._running = False
@@ -45,7 +35,7 @@ class Planner(object):
         self._skip = False
         self._act = False
         self._integrator = Twist()
-        self._freq = 200.
+        self._freq = 1000.
         self._force = Vector3()
         self._inserting_factor = None
         self._plan_z = None
@@ -54,6 +44,27 @@ class Planner(object):
         self._gripper_done = False
         self._pause = False
         self._current_action_progress = []
+        self._angle_move = False
+        self._plan_following_thread = threading.Thread()
+
+        rospy.sleep(2.5) # sleep a bit to make sure the TF cache is filled
+        self._path_pub = rospy.Publisher("/planner/path", Path, queue_size=0)
+        self._camera_pub = rospy.Publisher("/panda/camera_control", Bool, queue_size=0)
+        self._goal_pub = rospy.Publisher("/planner/goal_pose", HybridPose, queue_size=5)
+        self._cam_goal_pub = rospy.Publisher("/planner/cam_goal_pose", PoseStamped, queue_size=5)
+        self._command_sub = rospy.Subscriber("/parser/command", Command, self.on_command)
+        self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
+        self._command_pub = rospy.Publisher("/planner/command", String, queue_size=1)
+        self._force_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_force)
+        self._event_sub = rospy.Subscriber("/event", String, self.on_event)
+        self._fd_sub = rospy.Subscriber("/fd/button", Bool, self.on_fd)
+
+        #For angle control
+        self._panda_angle_sub = rospy.Subscriber("/viz/joint_states", JointState, self.on_state, queue_size=1)
+        self._angle_pub = rospy.Publisher("/planner/joint_pose", JointPose, queue_size = 5)
+
+        #Client stuff
+        self._client = actionlib.SimpleActionClient('mover_server', authoring_msgs.msg.AuthoringAction)
 
     def on_state(self, msg):
         self._current_joint = msg
@@ -193,7 +204,7 @@ class Planner(object):
             move_prepare = copy.deepcopy(move_above)
             move_prepare.pose.pose.position.z-=.05
             move_to.type = move_to.INSERT
-            move_to.pose.pose.position.z-=.00
+            move_to.pose.pose.position.z+=.01
             move_safe = copy.deepcopy(move_above)
             release = Action()
             release.finished.data = False
@@ -233,7 +244,7 @@ class Planner(object):
         if action.type == action.SCREW:
             #print("screw")
             #angle = 3*np.pi/5.
-            angle = np.pi/2.
+            angle = .95*np.pi/2.
             rot = tf.transformations.quaternion_from_euler(0,0,-angle)
             q_plus = Quaternion(rot[0],rot[1],rot[2],rot[3])
             rot = tf.transformations.quaternion_from_euler(0,0,angle)
@@ -276,7 +287,7 @@ class Planner(object):
         if action.type == action.UNSCREW:
             #print("unscrew")
             #angle = 3*np.pi/5.
-            angle = np.pi/2.
+            angle = .95*np.pi/2.
             rot = tf.transformations.quaternion_from_euler(0,0,-angle)
             q_plus = Quaternion(rot[0],rot[1],rot[2],rot[3])
             rot = tf.transformations.quaternion_from_euler(0,0,angle)
@@ -417,11 +428,17 @@ class Planner(object):
             return "Insert"
         return ""
 
+    def cancel_motion(self):
+        if self._client.get_state() == CLIENT_ACTIVE:
+            self._client.cancel_goal()
+            print("waiting for cancelling")
+            self._client.wait_for_result()
+            print("done cancelling")
+
     def on_command(self,msg):
         self._pause = False
-        self._sel_vec_pub.publish(Vector3(1,1,1))
         self._type = msg.type
-
+        starting = 0
         if msg.type == msg.SIM:
             self._sim = True
             self._event_pub.publish(String("start_sim"))
@@ -456,22 +473,41 @@ class Planner(object):
                 self.add_subaction(sub_action,new_plan)
             for action_done in self._current_action_progress:
                 if action_done.type == new_plan[0].type and action_done.item == new_plan[0].item:
-                    new_plan.pop(0)
+                    starting+=1
             self._plan = new_plan
-        self.update_plan()
+
+        if msg.type != msg.VIZ or self._plan_following_thread.is_alive():
+            self.cancel_motion()
+        if msg.type != msg.VIZ:
+            self._plan_following_thread = threading.Thread(target=self.run_plan, args=(starting,))
+            self._plan_following_thread.start()
+        #self.update_plan()
+
+    def run_plan(self,starting):
+        print("running plan")
+        result = False
+
+        for action in self._plan[starting:]:
+            if action.finished.data:
+                self._event_pub.publish(String("action_finished;"+self.get_type(action)+":"+action.item.data))
+                continue
+            goal = authoring_msgs.msg.AuthoringGoal()
+            goal.goal = action
+            self._client.send_goal(goal)
+            print(self._client.wait_for_result())
+            result = self._client.get_result().success.data
+            if not result:
+                break
+            self._current_action_progress.append(action)
+
+        if result:
+            self._event_pub.publish(String("motion_finished"))
 
     def run(self):
-        r = rospy.Rate(self._freq)
-        while not rospy.is_shutdown():
-            #t1 = rospy.Time.now()
-            self.update_plan()
-            #print("time "+str((rospy.Time.now()-t1).to_sec()))
-            r.sleep()
+        rospy.spin()
 
     def next_sub_action(self):
         if len(self._plan)>0 :
-            if self._plan[0].MOVE_FORCE:
-                self._sel_vec_pub.publish(Vector3(1,1,1))
             self._plan.pop(0)
         
         if len(self._plan) == 0:
@@ -480,9 +516,6 @@ class Planner(object):
         current_action = self._plan[0]
         if current_action.type == current_action.WAIT:
             self._event_pub.publish(String("wait;"+current_action.item.data))
-
-        if current_action.type == self._plan[0].MOVE_FORCE:
-            self._sel_vec_pub.publish(Vector3(1,1,0))
 
         #print(len(self._plan))
 
@@ -568,8 +601,6 @@ class Planner(object):
         print("inserting")
         if self._inserting_factor == None:
             self._plan_z = dz
-            v = Vector3(1,1,0)
-            self._sel_vec_pub.publish(v)
             self._inserting_factor = 0
         else:
             self._inserting_factor += 1
@@ -593,17 +624,21 @@ class Planner(object):
         for i,joint in enumerate(action.joint_state.position):
             diff.append(joint-self._current_joint.position[i])
         max_diff = max(diff,key=abs)
-        threshold = .001
-        if np.fabs(max_diff) < threshold:
+        threshold = .005
+        print(self._angle_move)
+        print(max_diff)
+        if self._angle_move and np.fabs(max_diff) < threshold:
+            self._angle_move = False
             return True
-            
-        max_vel = .3
+        if not self._angle_move:
+            self._angle_move = True
+            max_vel = .3
+            d_t = np.fabs(max_diff)/max_vel
 
-        d_t = np.fabs(max_diff)/max_vel
-
-        vel = JointState()
-        vel.velocity = [v/d_t for v in diff]
-        self._angle_pub.publish(vel)
+            pose = JointPose()
+            pose.header.stamp = rospy.Time.now() + rospy.Duration(d_t)
+            pose.joint_pose = action.joint_state.position
+            self._angle_pub.publish(pose)
         return False
 
     def view(self, action):
@@ -652,7 +687,14 @@ class Planner(object):
         return False
 
     def go_to_position(self, action):
-        goal = copy.deepcopy(action.pose)
+        goal = HybridPose()
+        if action.header.frame == REFERENCE_FRAME:
+            goal.pose = copy.deepcopy(action.pose)
+        else:
+            print("--------------------------ERROR-----------------------------------")
+            return
+        goal.sel_vector = [1,1,1,0,0,0]
+        goal.constraint_frame.w=1
         self._br.sendTransform(self.vectorise(goal.pose.position), self.vectorise(goal.pose.orientation), rospy.Time.now(), "current_goal",REFERENCE_FRAME)
         try:
             ee_frame = ('sim_' if self._sim else '') + 'end_effector'
@@ -692,8 +734,6 @@ class Planner(object):
             if (np.fabs(self._plan_z-dz)>5*threshold or dz<threshold):
                 print("found hole")
                 self._inserting_factor = None
-                v = Vector3(1,1,1)
-                self._sel_vec_pub.publish(v)
                 return True
             else:
                 self.insert(goal,dz)
@@ -702,14 +742,10 @@ class Planner(object):
         if dx < threshold and dy < threshold and math.fabs(angle[0])<.1 and math.fabs(angle[1])<.1 and math.fabs(angle[2])<.1:
             if dz < threshold:
                 print("arrived sub point")
-                goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.01)
-                self._goal_pub.publish(goal)
                 return True
             if np.fabs(self._force.z) > force_threshold:
                 if (action.type == action.MOVE_TO_CONTACT or action.type == action.MOVE_FORCE):
                     print("found contact")
-                    goal.header.stamp = rospy.Time.now()+rospy.Duration.from_sec(.01)
-                    self._goal_pub.publish(goal)
                     return True
                 if action.type == action.INSERT:
                     print(np.fabs(self._force.z))
@@ -718,6 +754,7 @@ class Planner(object):
         max_lin = .12
         if action.type == action.MOVE_TO_CONTACT or action.type == action.INSERT:
             max_lin = .05
+            goal.sel_vector[2] = 0
         max_rot = .6
 
         d = np.sqrt(dx**2+dy**2+dz**2)
@@ -783,6 +820,8 @@ class Planner(object):
 
     def signal_handler(self, signal, frame):
         #publish empty path
+        if self._plan_following_thread is not None:
+            self._cl
         sys.exit(0)
 
 if __name__ == "__main__":

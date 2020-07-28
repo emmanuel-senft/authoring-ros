@@ -11,6 +11,7 @@ from std_msgs.msg import String
 from nav_msgs.msg import Path
 from relaxed_ik.msg  import EEPoseGoals,JointAngles
 from sensor_msgs.msg import JointState
+from panda_ros_msgs.msg import JointPose
 
 import numpy as np 
 
@@ -30,6 +31,8 @@ class Mover(object):
         self._event_pub = rospy.Publisher("/event",String,queue_size=5)
         self._cam_vel_pub = rospy.Publisher("/mover/cart_vel_cam",Twist,queue_size=5)
         self._panda_path_pub = rospy.Publisher("/panda/path",Path,queue_size=5)
+        self._panda_joint_pub = rospy.Publisher("/panda/joint_pose",JointPose,queue_size=5)
+        self._sim_joint_pub = rospy.Publisher("/mover/joint_pose",JointPose,queue_size=5)
 
         rospy.sleep(1.) # sleep a bit to make sure the TF cache is filled
 
@@ -49,6 +52,7 @@ class Mover(object):
         self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=1)
         self._event_sub = rospy.Subscriber("/event",String, self.on_event)
         self._fd_sub = rospy.Subscriber("/fd/twist", Twist, self.on_fd)
+        self._joint_pose_sub = rospy.Subscriber("/planner/joint_pose", JointPose, self.on_joint)
 
         self._fd_mod = Twist()
         self._pause = False
@@ -119,6 +123,14 @@ class Mover(object):
             #print(vel)
             self._event_pub.publish("z_or;"+str(qp.GetRPY()[2]+np.pi/2))
             self._cam_vel_pub.publish(vel)
+
+    def on_joint(self, msg):
+        if self._pause:
+            return
+        if self._sim or (self._exec and self._virtual):
+            self._sim_joint_pub.publish(msg)
+        else:
+            self._panda_joint_pub.publish(msg)
 
     def on_goal(self, msg):
         if self._pause:

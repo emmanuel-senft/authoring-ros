@@ -10,6 +10,7 @@ import copy
 from std_msgs.msg import String
 from nav_msgs.msg import Path
 from sensor_msgs.msg import JointState
+from panda_ros_msgs.msg import JointPose
 
 import numpy as np 
 
@@ -40,7 +41,7 @@ class Simulator(object):
         self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
         self._freq = 200
         self._vel_sub = rospy.Subscriber(joint_topic, JointState, self.on_vel)
-        self._vel_sub2 = rospy.Subscriber("/planner/joint_vel", JointState, self.on_vel)
+        self._vel_sub2 = rospy.Subscriber("/mover/joint_pose", JointPose, self.on_joint)
         self._command_sub = rospy.Subscriber("/planner/command", String, self.on_command, queue_size = 1)
 
         #Panda State
@@ -49,6 +50,7 @@ class Simulator(object):
         #Publish init state for the robot
         self.init_states()
         self._init = False
+        self._desired_pose = None
 
         self._virtual = rospy.get_param('~only_virtual')
 
@@ -71,6 +73,20 @@ class Simulator(object):
 
     def move(self):
         if self._sim or not self._init:
+            if self._desired_pose is not None:
+                d_t = self._desired_pose.header.stamp.to_sec() - rospy.Time.now().to_sec()
+                desired_joint = self._desired_pose+[self._current_joint[-2],self._current_joint[-1]]
+                joint = JointState()
+                joint.header.stamp = rospy.Time.now()
+                joint.name = ["panda_joint1", "panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7","panda_finger_joint1","panda_finger_joint2"]
+                if d_t<0:
+                    joint.position = desired_joint
+                    self._desired_pose = None
+                else:
+                    joint.position = list(self._current_joint+(desired_joint-self._current_joint)/(d_t*self._freq))
+                self._viz_pub.publish(joint)
+                return    
+                
             for i,v in enumerate(self._current_velocity):
                 self._current_joint[i]+=v/self._freq
             joint = JointState()
@@ -88,7 +104,9 @@ class Simulator(object):
             #joint.angles.data = list(desired_joint)
             #self._panda_pub.publish(joint)
 
- 
+    def on_joint(self, msg):
+        self._desired_pose = msg
+
     def on_event(self, msg):
         cmd = msg.data.split(";")[0]
         if cmd == "motion_finished":

@@ -2,9 +2,10 @@
 import rospy
 import actionlib
 import authoring_msgs.msg
-from panda_ros_msgs.msg import HybridPose
+from panda_ros_msgs.msg import HybridPose, JointPose
 from geometry_msgs.msg import PoseStamped, Pose, Wrench
 from std_msgs.msg import Bool, String
+from sensor_msgs.msg import JointState
 import tf
 import tf2_ros
 import tf2_geometry_msgs
@@ -21,8 +22,6 @@ class AuthoringAction(object):
 
     def __init__(self, name):
         self._action_name = name
-        self._as = actionlib.SimpleActionServer(self._action_name, authoring_msgs.msg.AuthoringAction, execute_cb=self.execute_cb, auto_start = False)
-        self._as.start()
         self._freq = 1000
         self._tfBuffer = tf2_ros.Buffer()
         self._tl = tf2_ros.TransformListener(self._tfBuffer)
@@ -34,9 +33,15 @@ class AuthoringAction(object):
         self._waiting_for = None
         self._wrench = None
         self._search_theta = 0
-        self._push_force = -5
+        self._searching = False
+        self._push_force = -10
         self._insert_progress = 0
-        self._inserting_factor = .02
+        self._angle_move = False
+        self._current_joint = None
+        #TODO To fix
+        self._angle_time = rospy.Time.now()
+        self._as = actionlib.SimpleActionServer(self._action_name, authoring_msgs.msg.AuthoringAction, execute_cb=self.execute_cb, auto_start = False)
+        self._as.start()
         # create messages that are used to publish feedback/result
         self._feedback = authoring_msgs.msg.AuthoringFeedback()
         self._result = authoring_msgs.msg.AuthoringResult()
@@ -44,6 +49,16 @@ class AuthoringAction(object):
         self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=5)
         self._event_sub = rospy.Subscriber("/panda/events", String, self.on_event)
         self._wrench_sub = rospy.Subscriber("/panda/wrench", Wrench, self.on_wrench)
+        # Change back to viz later
+        self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
+        self._angle_pub = rospy.Publisher("/panda/joint_pose", JointPose, queue_size = 5)
+        self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
+
+        # Lambda for event
+        self._on_success = None
+
+    def on_state(self, msg):
+        self._current_joint = msg
 
     def on_event(self, msg):
         if msg.data == self._waiting_for:
@@ -53,8 +68,19 @@ class AuthoringAction(object):
         self._wrench = msg
 
     def execute_cb(self, goal):
+        #while(not self._as.is_preempt_requested()):
+        #    print("running")
+        #    rospy.sleep(1)
+        #print("stopped")
+        #if self._as.is_preempt_requested():
+        #    self._result.success = Bool(False)
+        #    self._as.set_succeeded(self._result)
+        #return
         self._current_action = None
+        self._angle_move = None
         self._waiting_for = None
+        self._on_success = None
+        self._searching = False
         self._starting_time = rospy.Time.now()
         self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
         if goal.goal.type == goal.goal.MOVE_FORCE or goal.goal.type == goal.goal.MOVE_TO_CONTACT:
@@ -63,11 +89,14 @@ class AuthoringAction(object):
         self._current_action = goal.goal
         r = rospy.Rate(self._freq)
         while not rospy.is_shutdown() and self._current_action is not None:
+            if self._as.is_preempt_requested():
+                self.success(False)
+                return
             self.update_command()
             r.sleep()
 
     def update_command(self):
-        if self._current_action and self._current_action.type == self._current_action.MOVE:
+        if self._current_action and (self._current_action.type == self._current_action.MOVE or self._current_action.type == self._current_action.STOP):
             if self.go_to_position():
                 self.success()
         elif self._current_action.type == self._current_action.GRASP:
@@ -83,34 +112,75 @@ class AuthoringAction(object):
         elif self._current_action.type == self._current_action.INSERT:
             if self.insert():
                 self.success()
+        elif self._current_action.type == self._current_action.MOVE_ANGLE:
+            if self.go_to_angle():
+                self.success()
         
     def grasp(self):
         if self._waiting_for is None:
             self._waiting_for = "grasp_finished"
             self._command_pub.publish("grasp")
+            self._on_success = lambda: self._event_pub.publish(String("grasped;"+self._current_action.item.data))
 
     def release(self):
         if self._waiting_for is None:
             self._waiting_for = "release_finished"
             self._command_pub.publish("release")
+            self._on_success = lambda: self._event_pub.publish(String("released;"+self._current_action.item.data))
+
+    def go_to_angle(self):
+        if self._current_joint is None:
+            return False
+        diff = []
+        for i,joint in enumerate(self._current_action.joint_state.position):
+            diff.append(joint-self._current_joint.position[i])
+        max_diff = max(diff,key=abs)
+        threshold = .005
+        if self._angle_move and (np.fabs(max_diff) < threshold or rospy.Time.now() > self._angle_time) :
+            self._angle_move = False
+            return True
+        if not self._angle_move:
+            self._angle_move = True
+            max_vel = .3
+            d_t = np.fabs(max_diff)/max_vel
+            print("time")
+            print(d_t)
+
+            pose = JointPose()
+            self._angle_time = rospy.Time.now() + rospy.Duration(d_t)
+            pose.header.stamp = self._angle_time
+            pose.joint_pose = self._current_action.joint_state.position
+            self._angle_pub.publish(pose)
+            print(pose)
+        return False
 
     # 3-step function: move to contact, search (if needed), push
     def insert(self):
-        print(self._insert_progress)
-        if self._insert_progress == 0:
+        if self.search():
+            return True
+        return False
+        if not self._searching:
             if self.move_force():
-                self._insert_progress = 1
-        if self._insert_progress == 1:
+                if self._reached_position:
+                    return True
+                else:
+                    self._searching = True
+        else:
             if self.search():
-                self._insert_progress = 2
-        if self._insert_progress == 2:
-            if self.go_to_position():
-                return True
+                self.searching = False
         return False
 
     def search(self):
+        ee_frame = ('sim_' if self._current_action.sim.data else '') + 'end_effector'
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+        linear,_ = self.get_diff_pose_trans(self._current_action.pose.pose,t)
+
+        linear_threshold = .001
+        if np.fabs(linear[2]) < linear_threshold:
+            return True
+
         action = self._current_action
-        coils = 7
+        coils = 10
         radius = .03
         v=.02#cm/s
         theta_max = 2*np.pi*coils
@@ -119,17 +189,13 @@ class AuthoringAction(object):
         if self._search_theta == 0:
             self._search_theta = chord/step
 
-        if self._wrench.force.z > self._push_force/2:
-            self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
-            action.pose.pose = copy.deepcopy(self._starting_pose.pose)
-            action.pose.pose.position.z -= self._inserting_factor
-            action.pose.header.stamp = self._starting_time + rospy.Duration(self.get_time_between_pose(self._starting_pose.pose, action.pose.pose))
-            return True
-            
+        force_threshold = self._push_force*.7
+
         away = step*self._search_theta
         d_x = np.cos(self._search_theta)*away
         d_y = np.sin(self._search_theta)*away
-        self._search_theta+=chord/away
+        if self._wrench.force.z < force_threshold:
+            self._search_theta+=chord/away
 
         pose = HybridPose()
         pose.pose.position.x = action.pose.pose.position.x+d_x
@@ -142,6 +208,7 @@ class AuthoringAction(object):
         return False
 
     def move_force(self):
+        self._reached_position = False
         action = self._current_action
         goal = HybridPose()
         goal.sel_vector = [1,1,0,0,0,0]
@@ -150,10 +217,15 @@ class AuthoringAction(object):
         ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
-        linear[2] = 0
+        
         linear_threshold = .001
         angular_threshold = .01
-        force_threshold = self._push_force/2
+        
+        if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold):
+            self._reached_position = True
+            return True
+        linear[2] = 0
+        force_threshold = self._push_force*.7
         if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold) and self._wrench.force.z < force_threshold:
             return True
         else: 
@@ -183,8 +255,12 @@ class AuthoringAction(object):
             self._pose_pub.publish(goal)
         return False
 
-    def success(self):
-        self._result.success = Bool(True)
+    def success(self,val = True):
+        #TODO Make the robot stop
+        if val and self._on_success is not None:
+            self._on_success()
+        self._on_success = None
+        self._result.success = Bool(val)
         self._as.set_succeeded(self._result)
         self._current_action = None
         self._search_theta = 0
