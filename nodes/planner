@@ -118,11 +118,9 @@ class Planner(object):
             move = Action(sim=Bool(sim))
             move.finished.data = False
             move.type = move.MOVE_ANGLE
-            state = JointState()
-            state.position=[0., -0.5, 0., -1.8, 0., 1.31, 0.8]
             #ref_pose.pose.orientation = q
             #move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move.joint_state = state
+            move.joint_pose = [0., -0.5, 0., -1.8, 0., 1.31, 0.8]
             plan.append(move)
 
         if action.type == action.VIEW:
@@ -622,7 +620,7 @@ class Planner(object):
         diff = []
         if self._current_joint is None:
             return False
-        for i,joint in enumerate(action.joint_state.position):
+        for i,joint in enumerate(action.joint_pose):
             diff.append(joint-self._current_joint.position[i])
         max_diff = max(diff,key=abs)
         threshold = .005
@@ -638,7 +636,7 @@ class Planner(object):
 
             pose = JointPose()
             pose.header.stamp = rospy.Time.now() + rospy.Duration(d_t)
-            pose.joint_pose = action.joint_state.position
+            pose.joint_pose = action.joint_pose
             self._angle_pub.publish(pose)
         return False
 

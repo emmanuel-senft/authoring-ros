@@ -157,7 +157,7 @@ class AuthoringAction(object):
         if self._current_joint is None:
             return False
         diff = []
-        for i,joint in enumerate(self._current_action.joint_state.position):
+        for i,joint in enumerate(self._current_action.joint_pose):
             diff.append(joint-self._current_joint.position[i])
         max_diff = max(diff,key=abs)
         threshold = .005
@@ -172,7 +172,7 @@ class AuthoringAction(object):
             pose = JointPose()
             self._angle_time = rospy.Time.now() + rospy.Duration(d_t)
             pose.header.stamp = self._angle_time
-            pose.joint_pose = self._current_action.joint_state.position
+            pose.joint_pose = self._current_action.joint_pose
             if self._virtual or self._current_action.sim:
                 self._sim_angle_pub.publish(pose)
             else:
