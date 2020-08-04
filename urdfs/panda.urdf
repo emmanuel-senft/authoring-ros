@@ -8,24 +8,24 @@
   <link name="panda_link0">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link0.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link0.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link0.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link0.stl"/>
       </geometry>
     </collision>
   </link>
   <link name="panda_link1">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link1.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link1.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link1.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link1.stl"/>
       </geometry>
     </collision>
   </link>
@@ -40,12 +40,12 @@
   <link name="panda_link2">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link2.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link2.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link2.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link2.stl"/>
       </geometry>
     </collision>
   </link>
@@ -60,12 +60,12 @@
   <link name="panda_link3">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link3.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link3.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link3.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link3.stl"/>
       </geometry>
     </collision>
   </link>
@@ -80,12 +80,12 @@
   <link name="panda_link4">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link4.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link4.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link4.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link4.stl"/>
       </geometry>
     </collision>
   </link>
@@ -100,12 +100,12 @@
   <link name="panda_link5">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link5.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link5.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link5.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link5.stl"/>
       </geometry>
     </collision>
   </link>
@@ -120,12 +120,12 @@
   <link name="panda_link6">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link6.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link6.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link6.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link6.stl"/>
       </geometry>
     </collision>
   </link>
@@ -140,12 +140,12 @@
   <link name="panda_link7">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/link7.dae"/>
+        <mesh filename="package://authoring/meshes/visual/link7.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/link7.stl"/>
+        <mesh filename="package://authoring/meshes/collision/link7.stl"/>
       </geometry>
     </collision>
   </link>
@@ -192,24 +192,24 @@
   <link name="panda_hand">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/hand.dae"/>
+        <mesh filename="package://authoring/meshes/visual/hand.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/hand.stl"/>
+        <mesh filename="package://authoring/meshes/collision/hand.stl"/>
       </geometry>
     </collision>
   </link>
   <link name="panda_leftfinger">
     <visual>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/finger.dae"/>
+        <mesh filename="package://authoring/meshes/visual/finger.dae"/>
       </geometry>
     </visual>
     <collision>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/finger.stl"/>
+        <mesh filename="package://authoring/meshes/collision/finger.stl"/>
       </geometry>
     </collision>
   </link>
@@ -217,13 +217,13 @@
     <visual>
       <origin rpy="0 0 3.14159265359" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://franka_description/meshes/visual/finger.dae"/>
+        <mesh filename="package://authoring/meshes/visual/finger.dae"/>
       </geometry>
     </visual>
     <collision>
       <origin rpy="0 0 3.14159265359" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="package://franka_description/meshes/collision/finger.stl"/>
+        <mesh filename="package://authoring/meshes/collision/finger.stl"/>
       </geometry>
     </collision>
   </link>

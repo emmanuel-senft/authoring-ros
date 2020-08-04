@@ -3,8 +3,10 @@
     <arg name="use_relaxed_ik" default="false"/>
     <arg name="only_virtual" default="true"/>
     <node pkg="authoring" type="planner" name="planner" output="screen"/>
-    <node pkg="authoring" type="tracker" name="tracker"/>
-    <node pkg="authoring" type="poi" name="poi"/> 
+    <node pkg="authoring" type="tracker" name="tracker" output="screen"/> 
+    <node pkg="authoring" type="poi" name="poi">
+        <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
+    </node> 
 
     <node pkg="authoring" type="mover_server" name="mover_server" output="screen">
         <param name="only_virtual" type="bool" value="$(arg only_virtual)" />

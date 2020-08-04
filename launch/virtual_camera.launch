@@ -2,12 +2,14 @@
 <!-- https://roboticsknowledgebase.com/wiki/tools/stream-rviz/ -->
 <launch>
     <node pkg="tf" type="static_transform_publisher" name="tag_boadcast" args="0. 0. 0. 1 0 0 0 tag_2 inv_tag_2 100" /> 
-    <node pkg="authoring" type="virtual_camera_manager" name="virtual_camera_manager"/>
+    <node pkg="authoring" type="virtual_camera_manager" name="virtual_camera_manager" output="screen"/>
     <!-- <node pkg="authoring" type="camera_switcher" name="camera_switcher" output="screen"/> -->
     <node name="uncompress_client" pkg="image_transport" type="republish" args="compressed in:=/client/camera/image_raw raw out:=/client/camera/image_raw">
     </node>
-    <include file="$(find ros_markers)/launch/detect.launch">
+    <node name="compress_virtual" pkg="image_transport" type="republish" args="raw in:=/virtual_camera/image compressed out:=/virtual_camera/image_repub">
+    </node>
+    <!-- <include file="$(find ros_markers)/launch/detect.launch">
         <arg name="default_marker_size" value="79"/>
         <arg name="image_topic" value="/client/camera/image_raw"/>
-    </include>
+    </include> -->
 </launch>

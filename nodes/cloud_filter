@@ -12,7 +12,7 @@ from geometry_msgs.msg import PoseStamped
 from authoring_msgs.msg import POIArray
 import tf
 from tf.transformations import quaternion_from_euler
-from removeMeshes import PointCloudMeshFilter,MeshInstance
+#from removeMeshes import PointCloudMeshFilter,MeshInstance
 
 REFERENCE_FRAME='panda_link0'
 CAMERA_FRAME='real_camera_frame'

@@ -13,7 +13,6 @@ find_package(catkin REQUIRED COMPONENTS
         image_transport 
         visualization_msgs
         image_geometry 
-        ros_markers
         nodelet)
 
 ## System dependencies
@@ -36,10 +35,13 @@ endif()
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES ros_markers
+#  LIBRARIES 
   CATKIN_DEPENDS 
     tf
-    nodelet
+    ros_numpy
+    authoring_msgs
+    panda_ros_msgs
+    sensor_msgs
   DEPENDS OpenCV
   LIBRARIES 
 )
