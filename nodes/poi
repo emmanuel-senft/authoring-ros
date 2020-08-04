@@ -18,14 +18,15 @@ class Poi(object):
         self._pois_pub = rospy.Publisher("/pois",POIArray,queue_size=1,latch=True)
         self._array=POIArray()
         self._tf_array = []
+        self._virtual = rospy.get_param('~only_virtual')
         self.init_pois()
         
     def init_pois(self):
         #POI1
         poi_init = POI()
-        poi_init.pose.pose.position.x=.555
-        poi_init.pose.pose.position.y=-.252
-        poi_init.pose.pose.position.z=.073
+        poi_init.pose.pose.position.x=.625
+        poi_init.pose.pose.position.y=-.295
+        poi_init.pose.pose.position.z=.08
         poi_init.pose.pose.orientation.w=1
         poi_init.pose.header.frame_id = REFERENCE_FRAME
         poi_init.type = poi_init.SCREW
@@ -54,14 +55,15 @@ class Poi(object):
         off_z=-.015
         for i in range(6):
             for j in range(5):
-                if ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 2) and (j == 1 or j==3)) or (i==4 and j==2):
-                    poi = copy.deepcopy(poi_init)
-                    poi.pose.pose.position.x+=off_x+.036*i+.001*j
-                    poi.pose.pose.position.y+=off_y+.041*j
-                    poi.pose.pose.position.z+=off_z+.013
-                    poi.id = screw_n
-                    screw_n += 1
-                    self._array.poi_array.append(poi)
+                #Need to add something for virtual objects
+                #if self._virtual and ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 2) and (j == 1 or j==3)) or (i==4 and j==2):
+                #    poi = copy.deepcopy(poi_init)
+                #    poi.pose.pose.position.x+=off_x+.036*i+.001*j
+                #    poi.pose.pose.position.y+=off_y+.041*j
+                #    poi.pose.pose.position.z+=off_z+.013
+                #    poi.id = screw_n
+                #    screw_n += 1
+                #    self._array.poi_array.append(poi)
                 poi = copy.deepcopy(poi_init)
                 poi.pose.pose.position.x+=off_x+.036*i+.001*j
                 poi.pose.pose.position.y+=off_y+.04*j

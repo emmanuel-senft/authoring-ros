@@ -8,10 +8,13 @@ from std_msgs.msg import String, ColorRGBA
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion, Twist, TransformStamped
 from authoring_msgs.msg import Action, Command, POI, POIArray
+from pose_detector.msg import DetectedObject,DetectedObjects
 import tf
 import tf2_ros
+import tf2_geometry_msgs
 import copy
-from tf.transformations import quaternion_from_euler
+from threading import Timer
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 REFERENCE_FRAME='panda_link0'
 CAMERA_FRAME='external_rgb_camera_link'
@@ -29,8 +32,10 @@ class Tracker(object):
         self._marker_pub = rospy.Publisher("/viz/meshes", Marker, queue_size=1)
 
         self._init_pois = None
-        self._sim_pois = None
-        self._estimated_pois = None
+        self._estimated_objects = []
+        self._objects = []
+        self._moving = False
+        self._moving_timer = None
 
         self._grasped_object = None
         self._sim = False
@@ -41,47 +46,99 @@ class Tracker(object):
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("event", String, self.on_event, queue_size = 1)
+        self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
 
+    def get_diff_poses(self, p1, p2):
+        return np.sqrt((p1.position.x-p2.position.x)**2+(p1.position.y-p2.position.y)**2+(p1.position.z-p2.position.z)**2)
+
+    def get_poi_from_object(self, o):
+        pose = PoseStamped()
+        pose.header.frame_id = "internal_rgb_camera_link"
+        pose.pose = o.pose
+        pose = self._tfBuffer.transform(pose,REFERENCE_FRAME)
+        pose.pose.position.z+=.03
+        q = [pose.pose.orientation.x,pose.pose.orientation.y,pose.pose.orientation.z,pose.pose.orientation.w]
+        e = euler_from_quaternion(q)
+        q = quaternion_from_euler(0,0,e[2])
+        pose.pose.orientation.x = q[0]
+        pose.pose.orientation.y = q[1]
+        pose.pose.orientation.z = q[2]
+        pose.pose.orientation.w = q[3]
+        poi = POI()
+        if o.mesh_name == "screw":
+            poi.type = poi.SCREW
+        poi.pose = pose
+        return poi
+
+    def update_poi(self, p1, p2):
+        p1.position.x=(p1.position.x+p2.position.x)/2
+        p1.position.y=(p1.position.y+p2.position.y)/2
+        p1.position.z=(p1.position.z+p2.position.z)/2
+        
+    def on_objects(self, msg):
+        if self._moving or self._sim:
+            return
+        for new_o in msg.detected_objects:
+            poi = self.get_poi_from_object(new_o)
+            poi.id = 0
+            for known_poi in self._objects:
+                if poi.type == known_poi.type:
+                    poi.id+=1
+                    if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .02:
+                        self.update_poi(known_poi.pose.pose,poi.pose.pose)
+                        break
+            else:
+                print("new object")
+                self._objects.append(poi)
+        self._estimated_objects = copy.deepcopy(self._objects)
 
     def on_pois(self, msg):
-        print("Got poi")
         if self._init_pois is not None:
             return
         self._init_pois = []
         for p in msg.poi_array:
             self._init_pois.append(p)
-        self._sim_pois = copy.deepcopy(self._init_pois)
-        self._estimated_pois = copy.deepcopy(self._sim_pois)
         self.publish_pois()
 
     def on_command(self, msg):
         self._cmd = msg
 
+    def reset_moving(self):
+        self._moving = False
+        self._moving_timer = None
+
     def on_event(self, msg):
         event = msg.data.split(';')
         if event[0] == "start_sim":
+            self._estimated_objects = copy.deepcopy(self._objects)
             self._sim = True
         if event[0] == "grasped":
             self._grasped_object = event[1]
             print("grasping "+self._grasped_object)
         if event[0] == "released":
             self._grasped_object = None
+        if event[0] == "start_exec":
+            self._moving = True
+            if self._moving_timer is not None:
+                self._moving_timer.cancel()
+                self._moving_timer = None
         if event[0] == "motion_finished":
+            self._moving_timer = Timer(1.0, self.reset_moving)
+            self._moving_timer.start()
             if self._sim:
                 self._sim = False
-                self._sim_pois = copy.deepcopy(self._estimated_pois)
+                self._estimated_objects = copy.deepcopy(self._objects)
             else:
-                self._estimated_pois = copy.deepcopy(self._sim_pois)
+                self._objects = copy.deepcopy(self._estimated_objects)
             
             self.publish_pois()
 
     def publish_pois(self):
-        if self._estimated_pois is None:
+        if self._init_pois is None:
             return
         self._tf_array = []
-        #print("N pois")
-        #print(len(self._estimated_pois))
-        for poi in self._estimated_pois:
+        for poi in self._init_pois+self._objects:
+            poi.pose.header.stamp = rospy.Time(0)
             t = TransformStamped()
             t.header.frame_id = poi.pose.header.frame_id
             t.child_frame_id = self.get_name(poi)
@@ -95,7 +152,7 @@ class Tracker(object):
             t.transform.rotation.w=poi.pose.pose.orientation.w
             self._tf_array.append(t)
         msg = POIArray()
-        msg.poi_array = copy.copy(self._estimated_pois)
+        msg.poi_array = copy.copy(self._init_pois+self._objects)
         self._poi_pub.publish(msg)
         self._br.sendTransform(self._tf_array)
            
@@ -111,9 +168,7 @@ class Tracker(object):
         return pose
 
     def publish_meshes(self):
-        if self._sim_pois is None:
-            return
-        for p in self._sim_pois:
+        for p in self._estimated_objects:
             if self.get_name(p) == self._grasped_object:
                 t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
                 p.pose.header.frame_id = REFERENCE_FRAME
