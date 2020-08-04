@@ -152,7 +152,8 @@ class Planner(object):
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.1
+            move_to.type = move_to.MOVE_TO_CONTACT
+            move_above.pose.pose.position.z+=.05
             if not sub_action:
                 move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z -= .003
@@ -200,11 +201,10 @@ class Planner(object):
             move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
             move_above.pose.pose.orientation = q
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.1
+            move_above.pose.pose.position.z+=.05
             if not sub_action:
                 move_above.pose.pose.position.z+=.15
             move_prepare = copy.deepcopy(move_above)
-            move_prepare.pose.pose.position.z-=.05
             move_to.type = move_to.INSERT
             move_to.pose.pose.position.z+=.01
             move_safe = copy.deepcopy(move_above)
@@ -213,7 +213,6 @@ class Planner(object):
             release.type = release.RELEASE
             release.item = action.item
             plan.append(move_above)
-            plan.append(move_prepare)
             plan.append(move_to)
             plan.append(release)
             plan.append(move_safe)

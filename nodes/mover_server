@@ -37,9 +37,10 @@ class AuthoringAction(object):
         self._push_force = -10
         self._insert_progress = 0
         self._angle_move = False
+        self._found_hole = False
+        self._z_plane = None
         self._current_joint = None
         self._virtual = rospy.get_param('~only_virtual')
-
         #TODO To fix
         self._angle_time = rospy.Time.now()
         self._as = actionlib.SimpleActionServer(self._action_name, authoring_msgs.msg.AuthoringAction, execute_cb=self.execute_cb, auto_start = False)
@@ -98,9 +99,11 @@ class AuthoringAction(object):
         self._waiting_for = None
         self._on_success = None
         self._searching = False
+        self._found_hole = False
+        self._z_plane = None
         self._starting_time = rospy.Time.now()
         self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
-        if goal.goal.type == goal.goal.MOVE_FORCE or goal.goal.type == goal.goal.MOVE_TO_CONTACT:
+        if goal.goal.type == goal.goal.MOVE_FORCE:
             goal.goal.pose.pose.position.z = self._starting_pose.pose.position.z
         goal.goal.pose.header.stamp = self._starting_time + rospy.Duration(self.get_time_between_pose(self._starting_pose.pose, goal.goal.pose.pose))
         self._current_action = goal.goal
@@ -205,7 +208,8 @@ class AuthoringAction(object):
         step = radius/theta_max
         chord = v/self._freq
         
-        force_threshold = self._push_force*.7
+        force_contact = self._push_force*.9
+        force_hole = self._push_force*.7
 
         away = step*self._search_theta
         d_x = np.cos(self._search_theta)*away
@@ -222,19 +226,28 @@ class AuthoringAction(object):
         # if self._wrench.force.z < force_threshold:
         #     self._search_theta+=chord/away
 
-        if self._wrench.force.z < force_threshold:
-            if self._search_theta == 0:
-                self._search_theta = chord/step
-            else:
-                self._search_theta+=chord/away
-
         pose = HybridPose()
         pose.pose.position.x = action.pose.pose.position.x+d_x
         pose.pose.position.y = action.pose.pose.position.y+d_y
         pose.pose.orientation.w = 1
         pose.sel_vector=[1,1,0,0,0,0]
+        pose.wrench.force.x = 0
+        pose.wrench.force.y = 0
         pose.wrench.force.z = self._push_force
         pose.constraint_frame.w = 1
+
+        if self._wrench.force.z < force_contact:
+            self._z_plane = t.transform.translation.z
+            if self._search_theta == 0:
+                self._search_theta = chord/step
+            else:
+                self._search_theta+=chord/away
+        if self._z_plane is not None and self._z_plane - t.transform.translation.z > .003:
+            self._found_hole = True
+            pose.sel_vector=[0,0,0,0,0,0]
+            print("found_hole")        
+
+        
         if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(pose)
         else:
