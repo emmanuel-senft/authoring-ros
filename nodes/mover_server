@@ -123,6 +123,9 @@ class AuthoringAction(object):
         elif self._current_action.type == self._current_action.MOVE_TO_CONTACT:
             if self.move_force():
                 self.success()
+        elif self._current_action.type == self._current_action.PULL:
+            if self.pull():
+                self.success()
         elif self._current_action.type == self._current_action.MOVE_FORCE:
             if self.move_force():
                 self.success()
@@ -262,6 +265,31 @@ class AuthoringAction(object):
         progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
         goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
         goal.wrench.force.z = self._push_force
+        
+        if self._virtual or self._current_action.sim.data:
+            self._sim_pose_pub.publish(goal)
+        else:
+            self._pose_pub.publish(goal)
+        
+        return False
+
+    def pull(self):
+        action = self._current_action
+        goal = HybridPose()
+        goal.sel_vector = [0,0,0,0,0,0]
+        goal.constraint_frame.w=1
+
+        ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+        linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
+        
+        linear_threshold = .001
+        angular_threshold = .01
+        
+        if np.abs(linear[2])<linear_threshold and np.all(np.abs(angular)<angular_threshold):
+            self._reached_position = True
+            return True
+        goal.wrench.force.z = -2*self._push_force
         
         if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(goal)

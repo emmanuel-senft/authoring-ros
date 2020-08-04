@@ -163,7 +163,10 @@ class Planner(object):
             plan.append(move_above)
             plan.append(move_to)
             plan.append(grasp)
-            plan.append(move_above)
+            pull = copy.deepcopy(move_above)
+            pull.pose.pose.position.x += .05
+            pull.type = pull.PULL
+            plan.append(pull)
 
         if action.type == action.INSPECT:
             #print("inspect")
