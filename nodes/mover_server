@@ -135,6 +135,10 @@ class AuthoringAction(object):
         
     def grasp(self):
         if self._waiting_for is None:
+            h = HybridPose()
+            h.constraint_frame.w = 1
+            h.sel_vector=[0,0,0,0,0,0]
+            self._pose_pub.publish(h)
             self._waiting_for = "grasp_finished"
             if self._virtual or self._current_action.sim.data:
                 self._sim_command_pub.publish("grasp")
@@ -144,6 +148,10 @@ class AuthoringAction(object):
 
     def release(self):
         if self._waiting_for is None:
+            h = HybridPose()
+            h.constraint_frame.w = 1
+            h.sel_vector=[0,0,0,0,0,0]
+            self._pose_pub.publish(h)
             self._waiting_for = "release_finished"
             if self._virtual or self._current_action.sim.data:
                 self._sim_command_pub.publish("release")
