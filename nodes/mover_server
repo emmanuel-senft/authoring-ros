@@ -70,7 +70,7 @@ class AuthoringAction(object):
         self._current_joint = msg
 
     def on_sim_state(self, msg):
-        if self._virtual or (self._current_action is not None and self._current_action.sim):
+        if self._virtual or (self._current_action is not None and self._current_action.sim.data):
             self._current_joint = msg
 
     def on_event(self, msg):
@@ -78,8 +78,6 @@ class AuthoringAction(object):
             self.success()
 
     def on_sim_event(self, msg):
-        print(msg.data)
-        print(self._waiting_for)
         if msg.data == self._waiting_for:
             self.success()
 
@@ -138,7 +136,7 @@ class AuthoringAction(object):
     def grasp(self):
         if self._waiting_for is None:
             self._waiting_for = "grasp_finished"
-            if self._virtual or self._current_action.sim:
+            if self._virtual or self._current_action.sim.data:
                 self._sim_command_pub.publish("grasp")
             else:
                 self._command_pub.publish("grasp")
@@ -147,7 +145,7 @@ class AuthoringAction(object):
     def release(self):
         if self._waiting_for is None:
             self._waiting_for = "release_finished"
-            if self._virtual or self._current_action.sim:
+            if self._virtual or self._current_action.sim.data:
                 self._sim_command_pub.publish("release")
             else:
                 self._command_pub.publish("release")
@@ -173,7 +171,7 @@ class AuthoringAction(object):
             self._angle_time = rospy.Time.now() + rospy.Duration(d_t)
             pose.header.stamp = self._angle_time
             pose.joint_pose = self._current_action.joint_pose
-            if self._virtual or self._current_action.sim:
+            if self._virtual or self._current_action.sim.data:
                 self._sim_angle_pub.publish(pose)
             else:
                 self._angle_pub.publish(pose)
@@ -226,7 +224,7 @@ class AuthoringAction(object):
         pose.sel_vector=[1,1,0,0,0,0]
         pose.wrench.force.z = self._push_force
         pose.constraint_frame.w = 1
-        if self._virtual or self._current_action.sim:
+        if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(pose)
         else:
             self._pose_pub.publish(pose)
@@ -257,7 +255,7 @@ class AuthoringAction(object):
         goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
         goal.wrench.force.z = self._push_force
         
-        if self._virtual or self._current_action.sim:
+        if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(goal)
         else:
             self._pose_pub.publish(goal)
@@ -281,7 +279,7 @@ class AuthoringAction(object):
     
         progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
         goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
-        if self._virtual or self._current_action.sim:
+        if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(goal)
         else:
             self._pose_pub.publish(goal)
