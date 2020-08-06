@@ -47,6 +47,7 @@ class Tracker(object):
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("event", String, self.on_event, queue_size = 1)
         self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
+        self._simulated_objects_sub = rospy.Subscriber("/simulated_objects", POIArray, self.on_simulated_objects)
 
     def get_diff_poses(self, p1, p2):
         return np.sqrt((p1.position.x-p2.position.x)**2+(p1.position.y-p2.position.y)**2+(p1.position.z-p2.position.z)**2)
@@ -99,6 +100,11 @@ class Tracker(object):
         for p in msg.poi_array:
             self._init_pois.append(p)
         self.publish_pois()
+
+    def on_simulated_objects(self, msg):
+        for p in msg.poi_array:
+            self._objects.append(p)
+        self._estimated_objects = copy.deepcopy(self._objects)
 
     def on_command(self, msg):
         self._cmd = msg

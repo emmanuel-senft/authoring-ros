@@ -16,7 +16,9 @@ class Poi(object):
     def __init__(self):
         self._br = tf2_ros.TransformBroadcaster()
         self._pois_pub = rospy.Publisher("/pois",POIArray,queue_size=1,latch=True)
+        self._simulated_objects_pub = rospy.Publisher("/simulated_objects",POIArray,queue_size=1,latch=True)
         self._array=POIArray()
+        self._simulated_objects=POIArray()
         self._tf_array = []
         self._virtual = rospy.get_param('~only_virtual')
         self.init_pois()
@@ -55,15 +57,14 @@ class Poi(object):
         off_z=-.015
         for i in range(6):
             for j in range(5):
-                #Need to add something for virtual objects
-                #if self._virtual and ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 2) and (j == 1 or j==3)) or (i==4 and j==2):
-                #    poi = copy.deepcopy(poi_init)
-                #    poi.pose.pose.position.x+=off_x+.036*i+.001*j
-                #    poi.pose.pose.position.y+=off_y+.041*j
-                #    poi.pose.pose.position.z+=off_z+.013
-                #    poi.id = screw_n
-                #    screw_n += 1
-                #    self._array.poi_array.append(poi)
+                if self._virtual and ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 2) and (j == 1 or j==3)) or (i==4 and j==2):
+                    poi = copy.deepcopy(poi_init)
+                    poi.pose.pose.position.x+=off_x+.036*i+.001*j
+                    poi.pose.pose.position.y+=off_y+.041*j
+                    poi.pose.pose.position.z+=off_z+.013
+                    poi.id = screw_n
+                    screw_n += 1
+                    self._simulated_objects.poi_array.append(poi)
                 poi = copy.deepcopy(poi_init)
                 poi.pose.pose.position.x+=off_x+.036*i+.001*j
                 poi.pose.pose.position.y+=off_y+.04*j
@@ -92,34 +93,8 @@ class Poi(object):
         #self._array.poi_array.append(poi)
 
         self._pois_pub.publish(self._array)
-
-    def get_vect(self, v):
-        toreturn = []
-        toreturn.append(v.x)
-        toreturn.append(v.y)
-        toreturn.append(v.z)
-        if isinstance(v, Quaternion):
-            toreturn.append(v.w)
-        return toreturn
-
-    def get_name(self, poi):
-        name = ""
-        if poi.type == poi.SCREW:
-            name = "screw"
-        if poi.type == poi.HOLE:
-            name = "hole"
-        if poi.type == poi.PUSHER:
-            name = "pusher"
-        if poi.type == poi.SCREW_DRIVER:
-            name = "screwdriver"
-        name += '_' + str(poi.id)
-        return name
-
-
-    def publish_pois(self):
-        self._br.sendTransform(self._tf_array)
-        #self._poses_pub.publish(pose_array)
-
+        if self._virtual:
+            self._simulated_objects_pub.publish(self._simulated_objects)
 
     def run(self):
         rospy.spin()

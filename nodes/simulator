@@ -61,8 +61,12 @@ class Simulator(object):
     def on_pose(self, msg):
         goal = msg.pose
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "sim_end_effector", rospy.Time(0))
+        if msg.sel_vector[0] == 0:
+            goal.position.x = t.transform.translation.x
+        if msg.sel_vector[1] == 0:
+            goal.position.y = t.transform.translation.y
         if msg.sel_vector[2] == 0:
-            goal.position.z = t.transform.translation.z - .01#/self._freq
+            goal.position.z = t.transform.translation.z + .01 * msg.wrench.force.z/np.fabs(msg.wrench.force.z)#/self._freq
         
         linear,angular = self.get_diff_pose_trans(goal,t)
         vel = Twist()
@@ -116,6 +120,7 @@ class Simulator(object):
             self._viz_pub.publish(joint)
 
     def on_joint(self, msg):
+        self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
         self._desired_joint_pose = msg
         self._starting_joint = copy.deepcopy(self._current_joint)
         self._starting_time = rospy.Time.now()
