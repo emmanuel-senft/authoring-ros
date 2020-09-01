@@ -155,23 +155,6 @@ class Parser(object):
         pose.header.stamp=rospy.Time.now()
         self._pose_pub.publish(pose)
 
-    def publish_mesh(self, pose, name, i, color, alpha):
-        marker = Marker()
-        marker.header.frame_id = REFERENCE_FRAME
-        marker.pose = copy.deepcopy(pose)
-        marker.pose.position.z-=.043
-        marker.ns = name
-        marker.id = i
-        scale = 1
-        marker.scale.x=scale
-        marker.scale.y=scale
-        marker.scale.z=scale
-        marker.color = self.get_color(color, alpha)
-        marker.type = marker.MESH_RESOURCE
-        marker.mesh_resource = "package://authoring/meshes/"+name+".stl"
-        self._marker_pub.publish(marker)
-
-
     def get_orientation_from_quaternion(self, q):
         rot = Quaternion()
         rot.x=q[0]
@@ -199,100 +182,6 @@ class Parser(object):
         color.b = b
         color.a=alpha
         return color
-
-    def publish_spiral(self,name,i,point,scale,color,alpha=1):
-        marker = Marker()
-        marker.header.frame_id = REFERENCE_FRAME
-        marker.pose.position = point
-        marker.ns = name
-        marker.id = i
-        marker.scale.x=scale/20.
-        marker.color = self.get_color(color, alpha)
-        marker.type = marker.LINE_STRIP
-        for i in range(100):
-            angle = i*np.pi/25.
-            r = scale/2*i/100
-            p = Point()
-            p.x+=r*np.cos(angle)
-            p.y+=r*np.sin(angle)
-            marker.points.append(p)
-
-        marker.pose.orientation.w=1
-        self._marker_pub.publish(marker)
-
-    def publish_cross(self, point, name, i, width, height, rotation, color, alpha):
-        marker = Marker()
-        marker.header.frame_id = REFERENCE_FRAME
-        marker.pose.position = point
-        marker.pose.orientation = self.get_orientation_from_quaternion([0,0,0,1])
-        marker.ns = name
-        marker.id = i
-        marker.scale.x = .02
-        marker.scale.y = .02
-        marker.scale.z = .02
-        marker.color = self.get_color(color, alpha)
-        marker.type = marker.LINE_LIST
-        marker.points = self.get_points_cross(width,height)
-        self._marker_pub.publish(marker)
-
-    def publish_rectangle(self, name, i, points, color, alpha):
-        marker = Marker()
-        marker.header.frame_id = REFERENCE_FRAME
-        marker.pose.position = Point()
-        marker.pose.orientation = self.get_orientation_from_quaternion([0,0,0,1])
-        marker.ns = name
-        marker.id = i
-        marker.scale.x = .05
-        marker.scale.y = .05
-        marker.scale.z = .05
-        marker.color = self.get_color(color, alpha)
-        marker.type = marker.LINE_STRIP
-        marker.points = points+[points[0]]
-        self._marker_pub.publish(marker)
-
-    def publish_surface(self, name, i, points, color, alpha):
-        marker = Marker()
-        marker.header.frame_id = REFERENCE_FRAME
-        marker.pose.position = Point()
-        marker.pose.orientation = self.get_orientation_from_quaternion([0,0,0,1])
-        marker.ns = name
-        marker.id = i
-        marker.scale.x = .05
-        marker.scale.y = .05
-        marker.scale.z = .05
-        marker.color = self.get_color(color, alpha)
-        marker.type = marker.LINE_STRIP
-        marker.points = points+[points[0]]
-        self._marker_pub.publish(marker)
-
-    def publish_sphere(self,name,i,point,scale,color,alpha=1):
-        marker = Marker()
-        marker.header.frame_id = REFERENCE_FRAME
-        marker.pose.position = point
-        marker.ns = name
-        marker.id = i
-        marker.scale.x=scale
-        marker.scale.y=scale
-        marker.scale.z=scale
-        marker.color = self.get_color(color, alpha)
-        marker.type = marker.SPHERE
-        marker.pose.orientation.w=1
-        self._marker_pub.publish(marker)
-
-    def publish_arrow(self,name, index, points,scale,color,alpha=.5):
-        marker = Marker()
-        marker.header.frame_id = REFERENCE_FRAME
-        marker.ns = name
-        marker.id = index
-        marker.scale.x=scale/2
-        marker.scale.y=scale
-        marker.scale.z=scale
-        marker.color = self.get_color(color, alpha)
-        marker.points = [points[1],points[0]]
-        marker.color.a=alpha
-        marker.type = marker.ARROW
-        marker.pose.orientation.w=1
-        self._marker_pub.publish(marker)
 
     def get_points(self, cmd):
         l = cmd.split("_")
@@ -508,68 +397,7 @@ class Parser(object):
                 else:
                     action.item = String(item_list[0])
 
-            #get item pixel coord
             else:
-                for coord in cmd[1].split('_'):
-                    coord = coord.split(',')
-                    point = Point()
-                    k=1
-                    if self._virtual:
-                        k=4
-                    point.x = int(int(coord[0])/k)
-                    point.y = int(int(coord[1])/k)
-                    d = image[point.y,point.x]
-                    if self._virtual:
-                        d=d[0]/255*3.5
-                    action.item = String(cmd[1].split('_')[0])
-                    if d == 0.0:
-                        print("bad depth")
-                        self._gui_pub.publish(String("bad_depth"))
-                        return None
-                    p = self.get_xyz_from_pixel(point.x,point.y,d)
-                    pose = PoseStamped()
-                    pose.header.frame_id = CAMERA_FRAME
-                    pose.pose.position = p
-                    pose.pose.orientation.w = 1
-                    pose = self._tfBuffer.transform(pose,REFERENCE_FRAME)
-                    pose.pose.orientation.x = 0
-                    pose.pose.orientation.y = 0
-                    pose.pose.orientation.z = 0
-                    pose.pose.orientation.w = 1
-                    action.poses.header = pose.header
-                    action.poses.poses.append(pose.pose)
-
-           #points = self.get_points(cmd[2])
-            #color = cmd[3]
-            #scale = None
-            #framed_points = []
-
-            #Still in camera frame
-            #p = self.get_xyz_from_pixel(point.x,point.y,d)
-            #if len(points) == 2:
-            #    scale = np.sqrt((points[0].x-points[1].x)**2 + (points[0].y-points[1].y)**2)*p.z/500.
-            #else:
-            #    scale = .0001
-            #if name == "arrow":
-            #    scale = scale/2.
-
-            #And transform to reference frame
-            #(p,object_str) = self.snap_to_poi(p,scale)
-
-            #framed_points.append(p)
-            #for p in points[1:]:
-            #    if len(points) != 2:
-            #        d = image[p.y,p.x]
-            #        if d == 0.0:
-            #            print(name)
-            #            print(index)
-            #            print("bad depth")
-            #            self._feedback_pub.publish(String("bad_depth"))
-            #            return None
-            #    p = self.get_xyz_from_pixel(p.x, p.y,d)
-            #    (p,_) = self.snap_to_poi(p,scale)
-            #    framed_points.append(p)
-            #points = framed_points
 
             self._gui_pub.publish(String("good_depth"))
 
@@ -578,29 +406,6 @@ class Parser(object):
                 #self.publish_surface(name, index, points, color, alpha=.5)
                 action.type = action.WIPE
 
-            if name == 'rect':
-                #self.publish_rectangle(name, index, points, color, alpha=.5)
-                continue
-
-            if name == 'Tighten':
-                #self.publish_spiral(name,index,points[0],scale=scale,color=color,alpha=1)
-                action.type = action.SCREW
-            if name == 'Loosen':
-                action.type = action.UNSCREW
-            if name == 'Pick':
-                #self.publish_sphere(name,index,points[0],scale=scale,color=color,alpha=.5)
-                action.type = action.PICK
-            if name == 'Place':
-                #self.publish_arrow(name, index, points,scale=.05,color=color,alpha=.5)
-                action.type = action.PLACE 
-            if name == 'Move':
-                action.type = action.MOVE_OBJECT
-            if name == 'Inspect':
-                action.type = action.INSPECT
-            if name == 'Push':
-                action.type = action.PUSH
-
-            #action.id = index
             actions.append(action)
 
         cmd = Command()
