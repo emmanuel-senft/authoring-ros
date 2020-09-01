@@ -126,6 +126,34 @@ class Parser(object):
         name += str(poi.id)
         return name
 
+    def get_pose_from_pixel(self,image,x,y):
+        d = image[y,x]
+        if d == 0.0:
+            print("bad depth")
+            self._gui_pub.publish(String("bad_depth"))
+            return None
+        point = self.get_xyz_from_pixel(x,y,d)
+        p = PoseStamped()
+        p.header.frame_id = CAMERA_FRAME
+        p.header.stamp = rospy.Time(0)
+        p.pose.position = point
+        p.pose.orientation.w = 1
+        return p
+
+    def get_rotated_point(self, image, coord):
+        coord = coord.split(',')
+        p = self.get_pose_from_pixel(image,int(coord[0]),int(coord[1]))
+        if p == None:
+            return None
+        p = self._tfBuffer.transform(p,REFERENCE_FRAME)
+        q = PyKDL.Rotation.RPY(0,0,float(coord[2])/180*np.pi).GetQuaternion()
+        p.pose.orientation.x=q[0]
+        p.pose.orientation.y=q[1]
+        p.pose.orientation.z=q[2]
+        p.pose.orientation.w=q[3]
+        h = self.get_hybrid_pose(p)
+        return h
+
     def get_xyz_from_pixel(self,x,y,d):
         p = [x,y]
         p = self._model.rectifyPoint(p)
@@ -394,7 +422,7 @@ class Parser(object):
             if len(cmd)>1 and cmd[1].find(",") != -1:
                 try:
                     #Only used if necessary?
-                    image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image,timeout=.5))
+                    image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image,timeout=1))
                     break
                 except Exception as e:
                     print(e)
@@ -428,15 +456,53 @@ class Parser(object):
                     moved[item_list[0]].pose.position.z+=.015
                 else:
                     action.item = String(item_list[0])
-
             else:
+                if name == 'Move':
+                    action.type = action.MOVE_UNKNOWN
+                    points = cmd[1].split('_')
+                    h_start = self.get_rotated_point(image, points[0])
+                    h_end = self.get_rotated_point(image, points[1])
+                    if h_start == None or h_end == None:
+                        return
+                    action.pose = h_start
+                    action.poses.poses.append(h_start)
+                    action.poses.poses.append(h_end)
+                    action.item = String(cmd[1])
+                    actions.append(action)
+
+                    t = TransformStamped()
+                    t.header = h_start.header
+                    t.child_frame_id = "goal"
+                    t.transform.translation = h_start.pose.position
+                    t.transform.rotation = h_start.pose.orientation
+                    self._br.sendTransform(t)
+                    continue
+                elif name == "Wipe":
+                    coords = cmd[1].split('_')
+                    h_grasp = self.get_rotated_point(image, coords[0])
+                    if h_grasp == None:
+                        return 
+                    action.poses.poses.append(h_grasp)
+                    action.pose = h_grasp
+                    for coord in coords[1:]:
+                        coord = coord.split(',')
+                        pose = self.get_pose_from_pixel(image,int(coord[0]),int(coord[1]))
+                        if pose == None:
+                            return 
+                        pose = self.get_hybrid_pose(self._tfBuffer.transform(pose,REFERENCE_FRAME))
+                        pose.pose.orientation.x = 0
+                        pose.pose.orientation.y = 0
+                        pose.pose.orientation.z = 0
+                        pose.pose.orientation.w = 1
+                        action.poses.header = pose.header
+                        action.poses.poses.append(pose)
+                    action.item = String(cmd[1])
+                else:
+                    return
 
             self._gui_pub.publish(String("good_depth"))
 
-            #action.item = String(object_str)
-            if name == 'Wipe':
-                #self.publish_surface(name, index, points, color, alpha=.5)
-                action.type = action.WIPE
+            action.type = self.get_action_from_name(action, name)
 
             actions.append(action)
 
@@ -452,6 +518,35 @@ class Parser(object):
         for action in actions:
             cmd.core_action.append(action)
         self._command_pub.publish(cmd)
+    def get_action_from_name(self, a, name):
+        if name == 'Wipe':
+            return a.WIPE
+        if name == 'Grasp':
+            return a.GRASP
+        if name == 'Release':
+            return a.RELEASE
+        if name == 'MoveContact':
+            return a.MOVE_TO_CONTACT
+        if name == 'Go':
+            return a.MOVE
+        if name == 'Tighten':
+            return a.SCREW
+        if name == 'Loosen':
+            return a.UNSCREW
+        if name == 'Pick':
+            return a.PICK
+        if name == 'Place':
+            return a.PLACE 
+        if name == 'Move':
+            return a.MOVE_OBJECT
+        if name == 'Inspect':
+            return a.INSPECT
+        if name == 'Push':
+            return a.PUSH
+        if name == 'MoveUnknown':
+            return a.MOVE_UNKNOWN
+        if name == 'Reset':
+            return a.RESET
 
     def distance(self, p1, p2):
         return np.sqrt((p1.x-p2.x)**2+(p1.y-p2.y)**2+(p1.z-p2.z)**2)
