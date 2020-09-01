@@ -1,6 +1,6 @@
 external_camera_transform: 1.2972526 0.149557681884 -0.163340759238 -0.234495311061
   0.0108545598021 0.966194832152 -0.106591138871 external_camera_base panda_link0
-external_view_transform: 1.093 -0.072 0.743 0.662 0.542 -0.315 -0.411 panda_link0 external_view
+external_view_transform: 1.1 0 0.75 0.5879378 0.5879378 -0.3928474 -0.3928474 panda_link0 external_view
 internal_camera_transform: 0 0 0 0 0 0 1 camera_base internal_camera_base
 sim_robot_transform: 0 0 0 0 0 0 1 sim_end_effector end_effector
 static_cloud_transform: 0.31 -0.06 0.838 0.726 -0.688 -0.011 0.006 panda_link0 static_camera_link
