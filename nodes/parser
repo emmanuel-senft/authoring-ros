@@ -16,6 +16,7 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import TransformStamped, PoseStamped, Point, Pose, PoseArray, Quaternion, Twist, Vector3
 from std_msgs.msg import ColorRGBA
 from authoring_msgs.msg import Action, Command, POI, POIArray
+from panda_ros_msgs.msg import HybridPose
 import copy
 from tf.transformations import quaternion_from_euler
 import tf
@@ -179,6 +180,15 @@ class Parser(object):
         rot.w=q[3]
         return rot
 
+    def get_hybrid_pose(self, p):
+        h = HybridPose()
+        h.header = p.header
+        h.pose = p.pose
+        h.sel_vector = [1,1,1,1,1,1]
+        h.constraint_frame.w = 1
+        print(h)
+        return h
+
     #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
     def get_color(self, string, alpha):
         color = ColorRGBA()
@@ -296,14 +306,16 @@ class Parser(object):
         return points
 
     def get_pose_from_trans(self, t):
-        pose = Pose()
-        pose.position.x = t.transform.translation.x
-        pose.position.y = t.transform.translation.y
-        pose.position.z = t.transform.translation.z
-        pose.orientation.x = t.transform.rotation.x
-        pose.orientation.y = t.transform.rotation.y
-        pose.orientation.z = t.transform.rotation.z
-        pose.orientation.w = t.transform.rotation.w
+        pose = HybridPose()
+        pose.pose.position.x = t.transform.translation.x
+        pose.pose.position.y = t.transform.translation.y
+        pose.pose.position.z = t.transform.translation.z
+        pose.pose.orientation.x = t.transform.rotation.x
+        pose.pose.orientation.y = t.transform.rotation.y
+        pose.pose.orientation.z = t.transform.rotation.z
+        pose.pose.orientation.w = t.transform.rotation.w
+        pose.sel_vector=[1,1,1,1,1,1]
+        pose.constraint_frame.w = 1
         return pose
 
 
@@ -380,7 +392,7 @@ class Parser(object):
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = action.RESET
-            pose = Pose()
+            pose = HybridPose()
             #pose.position.x = 0.35
             #pose.position.y = 0.
             #pose.position.z = 0.7
@@ -463,29 +475,8 @@ class Parser(object):
             if cmd[0] == "Reset":
                 action.type = action.RESET
                 action.poses.header.frame_id = REFERENCE_FRAME
-                pose = Pose()
-                #pose.position.x = 0.35
-                #pose.position.y = 0.
-                #pose.position.z = 0.7
-                #pose.position.x = 0.3
-                #pose.position.y = 0.
-                #pose.position.z = 0.5
-                #q = tf.transformations.quaternion_from_euler(np.pi,0,-np.pi/2)
-                #pose.orientation.x = q[0]
-                #pose.orientation.y = q[1]
-                #pose.orientation.z = q[2]
-                #pose.orientation.w = q[3]
-                action.poses.poses.append(pose)
-    
-            #elif cmd[0] == "Move":
-            #    action.item = String(cmd[1])
-            #    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[0], rospy.Time(0)) 
-            #    pose = self.get_pose_from_trans(t)
-            #    action.poses.poses.append(pose)
-            #    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, cmd[1].split('-')[1], rospy.Time(0)) 
-            #    pose = self.get_pose_from_trans(t)
-            #    action.poses.poses.append(pose)
-                
+                pose = HybridPose()
+                action.poses.poses.append(pose)    
             elif cmd[1].find(",") == -1:
                 item_list = cmd[1].split('-')
                 for item in item_list:
@@ -498,7 +489,7 @@ class Parser(object):
                 if cmd[0] == "Move":
                     action.item = String(cmd[1])
                     moved[item_list[0]]=action.poses.poses[-1]
-                    moved[item_list[0]].position.z+=.015
+                    moved[item_list[0]].pose.position.z+=.015
                 else:
                     action.item = String(item_list[0])
 

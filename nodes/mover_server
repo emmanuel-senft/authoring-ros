@@ -313,25 +313,31 @@ class AuthoringAction(object):
 
     def go_to_position(self):
         action = self._current_action
-        goal = HybridPose()
-        goal.sel_vector = [1,1,1,0,0,0]
-        goal.constraint_frame.w=1
+        goal = copy.deepcopy(action.pose)
+        #goal.sel_vector = [1,1,1,0,0,0]
+        #goal.constraint_frame.w=1
         
         ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
-        linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
+        linear,angular = self.get_diff_pose_trans(goal.pose,t)
 
         linear_threshold = .001
         angular_threshold = .01
-        if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold):
+        sel_vector = [goal.sel_vector[0],goal.sel_vector[1],goal.sel_vector[2],goal.sel_vector[3],goal.sel_vector[4],goal.sel_vector[5]]
+
+        if np.all(sel_vector[:3]*np.abs(linear)<linear_threshold) and np.all(sel_vector[3:6]*np.abs(angular)<angular_threshold):
             return True
     
-        progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
-        goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
+        progress = min((rospy.Time.now() - self._starting_time).to_sec()/(goal.header.stamp - self._starting_time).to_sec(),1)
+        progress = min(progress,1)
+        goal.pose = self.interpolate_poses(self._starting_pose.pose, goal.pose,progress)
         if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(goal)
         else:
             self._pose_pub.publish(goal)
+        if progress == 1:
+            return True
     
         return False
 

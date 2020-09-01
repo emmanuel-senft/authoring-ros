@@ -127,13 +127,7 @@ class Planner(object):
             move = Action(sim=Bool(sim))
             move.finished.data = False
             move.type = move.VIEW
-            move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            #Fix for non vertical objects
-            #(trans,rot) = self._tl.lookupTransform("go_camera","camera1",rospy.Time(0))
-            #move.pose.pose.position.x -= trans[0]
-            #move.pose.pose.position.y -= trans[1]
-            #move.pose.pose.position.z -= trans[2]
-            #move.pose.pose.orientation = q
+            move.pose = action.pose
             plan.append(move)
 
         if action.type == action.MOVE:
@@ -149,25 +143,26 @@ class Planner(object):
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
-            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move_above.pose.pose.orientation = q
+            move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
-            move_to.type = move_to.MOVE_TO_CONTACT
+            move_close = copy.deepcopy(move_above)
+            move_to.type = move_to.MOVE_FORCE
             move_above.pose.pose.position.z+=.05
-            if not sub_action:
-                move_above.pose.pose.position.z+=.1
+            move_close.pose.pose.position.z+=.01
             move_to.pose.pose.position.z -= .003
             grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = action.item
             plan.append(move_above)
+            plan.append(move_close)
             plan.append(move_to)
             plan.append(grasp)
             pull = copy.deepcopy(move_above)
             pull.pose.pose.position.x += .05
             pull.type = pull.PULL
-            plan.append(pull)
+            if sub_action:
+                plan.append(pull)
 
         if action.type == action.INSPECT:
             #print("inspect")
@@ -189,8 +184,7 @@ class Planner(object):
             move = Action(sim=Bool(sim))
             move.finished.data = False
             move.type = move.MOVE
-            move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move.pose.pose.orientation = q
+            move.pose = action.poses.poses[0]
             plan.append(move)
         
         if action.type == action.PLACE:
@@ -226,8 +220,7 @@ class Planner(object):
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
-            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move_above.pose.pose.orientation = q
+            move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z+=.02
@@ -254,8 +247,7 @@ class Planner(object):
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
-            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move_above.pose.pose.orientation = q
+            move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z+=.005
@@ -273,6 +265,8 @@ class Planner(object):
             plus.pose.pose.orientation = q_plus
             minus = copy.deepcopy(move_to)
             minus.pose.pose.orientation = q_minus
+            plus.pose.sel_vector = [0,0,0,1,1,1]
+            plus.pose.wrench.force.z=-5
 
             plan.append(move_above)
             plan.append(minus)
@@ -297,8 +291,7 @@ class Planner(object):
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
-            move_above.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            move_above.pose.pose.orientation = q
+            move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z-=.00
@@ -316,6 +309,8 @@ class Planner(object):
             minus = copy.deepcopy(move_to)
             minus.pose.pose.orientation = q_minus
             minus.pose.pose.position.z+=.002
+            minus.pose.sel_vector = [0,0,1,1,1,1]
+            #minus.pose.wrench.force.z=5
 
             plan.append(move_above)
             plan.append(plus)
@@ -379,13 +374,15 @@ class Planner(object):
 
         if not sub_action:
             #print(action)
-            action.finished.data = True
-            plan.append(action)
+            finished_action = copy.deepcopy(action)
+            finished_action.finished = Bool(True)
+            plan.append(finished_action)
 
     def point_toward(self, p0, p1, ratio):
-        p = PoseStamped()
+        p = HybridPose()
         #Assume frame are in reference frame
         p.header.frame_id = REFERENCE_FRAME
+        p.sel_vector = [1,1,1,0,0,0]
         #Assume all points have same orientation
         p.pose.orientation = p0.orientation
         p.pose.position.x += p0.position.x + ratio * (p1.position.x-p0.position.x)
@@ -484,6 +481,14 @@ class Planner(object):
             self._plan_following_thread.start()
         #self.update_plan()
 
+    def get_hybrid_pose(self, pose):
+        h = HybridPose()
+        pose = self._tl.transformPose(REFERENCE_FRAME, pose)
+        h.pose = pose.pose
+        h.header = pose.header
+        h.sel_vector = [1,1,1,1,1,1]
+        h.constraint_frame.w = 1
+        return h
     def run_plan(self,starting):
         print("running plan")
         result = False
