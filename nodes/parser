@@ -123,6 +123,8 @@ class Parser(object):
             name = "pusher:"
         if poi.type == poi.SCREW_DRIVER:
             name = "screwdriver:"
+        if poi.type == poi.BOX:
+            name = "box:"
         name += str(poi.id)
         return name
 

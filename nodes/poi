@@ -26,7 +26,7 @@ class Poi(object):
     def init_pois(self):
         #POI1
         poi_init = POI()
-        poi_init.pose.pose.position.x=.625
+        poi_init.pose.pose.position.x=.625-3*0.026
         poi_init.pose.pose.position.y=-.295
         poi_init.pose.pose.position.z=.08
         poi_init.pose.pose.orientation.w=1
@@ -36,22 +36,30 @@ class Poi(object):
         #self._array.poi_array.append(poi_init)
         screw_n = 0
         hole_n = 0
-        for i in range(0):
-            poi = copy.deepcopy(poi_init)
-            poi.pose.pose.position.x+=(i)*0.0375
-            poi.pose.pose.position.y-=(i)*0.001
-            poi.id = screw_n
-            screw_n += 1
-            self._array.poi_array.append(poi)
-        for i in range(5):
-            poi = copy.deepcopy(poi_init)
-            poi.pose.pose.position.x+=(i)*0.0375
-            poi.pose.pose.position.y-=(i)*0.001
-            poi.pose.pose.position.z-=0.015
-            poi.id = hole_n
-            hole_n += 1
-            poi.type = poi.HOLE
-            self._array.poi_array.append(poi)
+        box_poi = copy.deepcopy(poi_init)
+        box_poi.type = box_poi.BOX
+        box_poi.pose.pose.position.x+=.12
+        box_poi.pose.pose.position.y+=0.05
+        box_poi.pose.pose.position.z+=0.05
+        self._array.poi_array.append(box_poi)
+
+        
+        #for i in range(0):
+        #    poi = copy.deepcopy(poi_init)
+        #    poi.pose.pose.position.x+=(i)*0.0375
+        #    poi.pose.pose.position.y-=(i)*0.001
+        #    poi.id = screw_n
+        #    screw_n += 1
+        #    self._array.poi_array.append(poi)
+        #for i in range(5):
+        #    poi = copy.deepcopy(poi_init)
+        #    poi.pose.pose.position.x+=(i)*0.0375
+        #    poi.pose.pose.position.y-=(i)*0.001
+        #    poi.pose.pose.position.z-=0.015
+        #    poi.id = hole_n
+        #    hole_n += 1
+        #    poi.type = poi.HOLE
+        #    self._array.poi_array.append(poi)
         off_x=-.197-.036
         off_y=-.001
         off_z=-.015
@@ -59,6 +67,7 @@ class Poi(object):
             for j in range(5):
                 if self._virtual and ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 2) and (j == 1 or j==3)) or (i==4 and j==2):
                     poi = copy.deepcopy(poi_init)
+                    poi.age = 4
                     poi.pose.pose.position.x+=off_x+.036*i+.001*j
                     poi.pose.pose.position.y+=off_y+.041*j
                     poi.pose.pose.position.z+=off_z+.013
@@ -77,14 +86,14 @@ class Poi(object):
         off_y=.485
         off_z=-.018
         d=.168
-        for i in range(12):
-            poi = copy.deepcopy(poi_init)
-            poi.pose.pose.position.x += off_x + d/2*np.cos(i*np.pi/6)
-            poi.pose.pose.position.y += off_y + d/2*np.sin(i*np.pi/6)
-            poi.pose.pose.position.z += off_z
-            poi.id = i
-            poi.type = poi.PUSHER
-            self._array.poi_array.append(poi)
+        #for i in range(12):
+        #    poi = copy.deepcopy(poi_init)
+        #    poi.pose.pose.position.x += off_x + d/2*np.cos(i*np.pi/6)
+        #    poi.pose.pose.position.y += off_y + d/2*np.sin(i*np.pi/6)
+        #    poi.pose.pose.position.z += off_z
+        #    poi.id = i
+        #    poi.type = poi.PUSHER
+        #    self._array.poi_array.append(poi)
 
         #poi = copy.deepcopy(poi_init)
         #poi.type = poi.SCREW_DRIVER
