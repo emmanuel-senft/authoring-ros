@@ -508,6 +508,7 @@ class Planner(object):
             self._client.cancel_goal()
             print("waiting for cancelling")
             self._client.wait_for_result()
+            self._plan_following_thread.join()
             print("done cancelling")
 
     def on_command(self,msg):
