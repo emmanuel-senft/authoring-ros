@@ -230,8 +230,9 @@ class AuthoringAction(object):
         step = radius/theta_max
         chord = v/self._freq
         
-        force_contact = self._push_force*.9
-        force_hole = self._push_force*.7
+        force = self._push_force/2
+        force_contact = force*.9
+        force_hole = force*.7
 
         away = step*self._search_theta
         d_x = np.cos(self._search_theta)*away
@@ -255,18 +256,28 @@ class AuthoringAction(object):
         pose.sel_vector=[1,1,0,0,0,0]
         pose.wrench.force.x = 0
         pose.wrench.force.y = 0
-        pose.wrench.force.z = self._push_force
+        pose.wrench.force.z = force
         pose.constraint_frame.w = 1
-
+        print("Force")
+        print(self._wrench.force.z)
+        print(force_contact)
         if self._wrench.force.z < force_contact:
-            self._z_plane = t.transform.translation.z
+            if self._z_plane is None:
+                self._z_plane = t.transform.translation.z
             if self._search_theta == 0:
                 self._search_theta = chord/step
             else:
                 self._search_theta+=chord/away
-        if self._z_plane is not None and self._z_plane - t.transform.translation.z > .003:
+            print("High force")
+        else:
+            if self._wrench.force.z < force_hole:
+                print("Medium force")
+            else: 
+                print("Low force")
+        if self._z_plane is not None and (self._z_plane - t.transform.translation.z > .002):
             self._found_hole = True
             pose.sel_vector=[0,0,0,0,0,0]
+            pose.wrench.force.z *= 2
             print("found_hole")        
 
         
