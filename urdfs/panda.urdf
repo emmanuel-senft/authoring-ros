@@ -256,38 +256,24 @@
   </material>
   <link name="camera_body">
     <visual>
-      <origin xyz="0. 0. 0."/>
+      <origin rpy="0 3.1416 0"  xyz=".047 0.04 0.0115"/>
       <geometry>
-        <box size="0.0994 0.0996 0.023"/>
+        <mesh filename="package://authoring/meshes/visual/kinect-model.stl"/>
       </geometry>
       <material name="white"/>
     </visual>
   </link>
   <link name="camera_base">
-    <visual>
-      <origin xyz="-0.013 0. 0."/>
-      <geometry>
-        <box size="0.026 0.103 0.039"/>
-      </geometry>
-      <material name="grey"/>
-    </visual>
   </link>
   <link name="camera_visor">
-    <visual>
-      <origin xyz="-0.0128 0. 0."/>
-      <geometry>
-        <box size="0.026 0.101 0.037"/>
-      </geometry>
-      <material name="black"/>
-    </visual>
   </link>
   <joint name="fake_base" type="fixed">
-    <parent link="panda_link6"/>
+    <parent link="panda_link8"/>
     <child link="camera_base"/>
     <!--<origin xyz="-0.032 0.038 0.031" rpy="-2.731 -1.517 -1.209" />-->
     <!--<origin xyz="-0.052 -0.008 -0.071" rpy="-1.553 -0.582 -1.587" />-->
     <!--<origin xyz="0.032 -0.064 0.053" rpy="-0.389 -1.554 2.542" />-->
-    <origin rpy="-1.586 0.010 -1.585" xyz="0.156 -0.041 0.00"/>
+    <origin rpy="3.14 -1.57 -0.785" xyz="0.025 -0.065 0.01"/>
   </joint>
   <joint name="camera_base_to_body" type="fixed">
     <parent link="camera_base"/>
