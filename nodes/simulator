@@ -47,6 +47,7 @@ class Simulator(object):
         self._vel_sub2 = rospy.Subscriber("/simulator/joint_pose", JointPose, self.on_joint)
         self._command_sub = rospy.Subscriber("/simulator/commands", String, self.on_command, queue_size = 1)
         self._cart_vel_pub = rospy.Publisher("/simulator/cart_vel", Twist, queue_size=5)
+        self._cart_vel_cam_pub = rospy.Publisher("/simulator/cart_vel_cam", Twist, queue_size=5)
         #Panda State
         self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
 

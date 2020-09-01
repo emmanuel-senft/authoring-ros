@@ -95,6 +95,12 @@ class VirtualCamera(object):
             self._locked = False
             self._flying = True
             self.default_camera()
+            t = TransformStamped()
+            t.child_frame_id = "camera1"
+            t.header.frame_id = "external_view"
+            t.transform.rotation.w = 1
+            self._last_t = t
+            
         if msg.data == "init_gui":
             self._flying = False
 

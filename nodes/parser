@@ -258,20 +258,6 @@ class Parser(object):
             return
         if command_type == 'init_gui' or command_type == "lock":
             self.publish_pois()
-        if command_type == 'mouse':
-            arg = list_actions[1].split(":")
-            scale = .001
-            target = PoseStamped()
-            target.header.frame_id = "internal_rgb_camera_link"
-            target.pose.position.x = float(arg[0])*scale
-            target.pose.position.y = float(arg[1])*scale
-            q = tf.transformations.quaternion_from_euler(-float(arg[3])*scale,float(arg[2])*scale,0)
-            target.pose.orientation.x = q[0]
-            target.pose.orientation.y = q[1]
-            target.pose.orientation.z = q[2]
-            target.pose.orientation.w = q[3]
-            target = self._tfBuffer.transform(target,REFERENCE_FRAME)
-            
         if command_type == 'save_view' and self._joints is not None:
             n = int(list_actions[1])
             if n > len(self._saved_view) - 1:
