@@ -9,7 +9,7 @@ import sys
 import cv2
 from threading import Event
 from std_msgs.msg import String
-from sensor_msgs.msg import Image, PointCloud2, CameraInfo
+from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
 import image_geometry
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker
@@ -57,9 +57,18 @@ class Parser(object):
         self._command_sub = rospy.Subscriber("/gui/command", String, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("/event", String, self.on_event, queue_size = 1)
         self._event_pub = rospy.Publisher("/event", String, queue_size = 1)
+        if self._virtual:
+            self._joint_sub = rospy.Subscriber("/simulator/joint_states", JointState, self.on_joints)
+        else:
+            self._joint_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_joints)
         
+        self._joints = None
         self._camera_t = None
         self._freq = 1
+        self._saved_view = []
+
+    def on_joints(self, msg):
+        self._joints = msg.position
 
     def on_event(self, msg):
         l = msg.data.split(";")
@@ -233,6 +242,29 @@ class Parser(object):
             target.pose.orientation.w = q[3]
             target = self._tfBuffer.transform(target,REFERENCE_FRAME)
             
+        if command_type == 'save_view' and self._joints is not None:
+            n = int(list_actions[1])
+            if n > len(self._saved_view) - 1:
+                self._saved_view.append(self._joints)
+            else:
+                self._saved_view[n] = self._joints
+            return
+
+        if command_type == 'load_view':
+            n = int(list_actions[1])
+            if n < len(self._saved_view):
+                action = Action()
+                action.poses.header.frame_id = REFERENCE_FRAME
+                action.type = action.MOVE_ANGLE
+                action.joint_pose = self._saved_view[n]
+                pose = HybridPose()
+                action.poses.poses.append(pose)
+                cmd = Command()
+                cmd.type = cmd.EXEC
+                cmd.core_action.append(action)
+                self._command_pub.publish(cmd)
+                return
+
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = action.VIEW
