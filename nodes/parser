@@ -281,13 +281,52 @@ class Parser(object):
                 self._command_pub.publish(cmd)
                 return
 
+        if command_type == 'direct': 
+            cmd = list_actions[1].split(":")
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
-            action.type = action.VIEW
-            action.poses.poses.append(target.pose) 
+            action.type = self.get_action_from_name(action,cmd[0])
+            if cmd[0] == "Go":
+                delta = cmd[1].split(',')
+                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "end_effector", rospy.Time(0)) 
+                pose = self.get_pose_from_trans(t)
+                pose.pose.position.x += float(delta[0])/1000.
+                pose.pose.position.y += float(delta[1])/1000.
+                action.poses.poses.append(pose)
+                action.pose = pose
+            elif len(cmd) == 1:
+                pass
+            elif cmd[1].find(",") == -1:
+                item = cmd[1]
+                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item, rospy.Time(0)) 
+                pose = self.get_pose_from_trans(t)
+                action.poses.poses.append(pose)
+                action.pose = pose
+                action.item = String(item)
+            else:
+                image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image,timeout=1))
+                points = cmd[1]
+                coord = points.split(',')
+                start = self.get_pose_from_pixel(image,int(coord[0]),int(coord[1]))
+                if start == None:
+                    return
+                start = self._tfBuffer.transform(start,REFERENCE_FRAME)
+                q = PyKDL.Rotation.RPY(0,0,float(coord[2])/180*np.pi).GetQuaternion()
+                start.pose.orientation.x=q[0]
+                start.pose.orientation.y=q[1]
+                start.pose.orientation.z=q[2]
+                start.pose.orientation.w=q[3]
+                h = HybridPose()
+                h.header = start.header
+                h.pose = start.pose
+                h.sel_vector = [1,1,1,1,1,1]
+                h.constraint_frame.w = 1
+                action.pose = h
+                action.poses.poses.append(h)
             cmd = Command()
             cmd.type = cmd.EXEC
             cmd.core_action.append(action)
+            print(action)
             self._command_pub.publish(cmd)
             return
 
@@ -340,7 +379,7 @@ class Parser(object):
             return
 
         if command_type == "reset_position":
-            self._panda_command.publish(String("release"))
+            #self._panda_command.publish(String("release"))
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = action.RESET
@@ -425,7 +464,6 @@ class Parser(object):
             action.poses.header.frame_id = REFERENCE_FRAME
             #Get item name
             if cmd[0] == "Reset":
-                action.type = action.RESET
                 action.poses.header.frame_id = REFERENCE_FRAME
                 pose = HybridPose()
                 action.poses.poses.append(pose)    
