@@ -354,20 +354,35 @@ class Parser(object):
             self._command_pub.publish(cmd)
             return
 
-        if command_type.startswith('zoom'):
-            target = PoseStamped()
-            target.header.frame_id = "internal_rgb_camera_link"
-            target.pose.orientation.w=1
-            if  command_type == 'zoom_in':
-                target.pose.position.z=+.05
-            else:
-                target.pose.position.z=-.05
-            t = self._tfBuffer.transform(target, REFERENCE_FRAME) 
+        if command_type == 'mouse':
+            arg = list_actions[1].split(":")
             action = Action()
-            action.poses.header.frame_id = REFERENCE_FRAME
+            q = PyKDL.Rotation.RPY(float(arg[3]),float(arg[4]),float(arg[5])).GetQuaternion()
+            p = PoseStamped()
+            p.header.stamp = rospy.Time(0)
+            p.header.frame_id = "rotated_camera"
+            p.pose.position.x = float(arg[0])
+            p.pose.position.y = float(arg[1])
+            p.pose.position.z = float(arg[2])
+            p.pose.orientation.x = q[0]
+            p.pose.orientation.y = q[1]
+            p.pose.orientation.z = q[2]
+            p.pose.orientation.w = q[3]
+            p = self._tfBuffer.transform(p,"panda_link0")
+            h = HybridPose()
+            h.sel_vector = [1,1,1,1,1,1]
+            h.constraint_frame.w = 1
+            h.pose = p.pose
+            h.header = p.header
+            #t = TransformStamped()
+            #t.header = p.header
+            #t.child_frame_id = "camera_goal"
+            #t.transform.translation = p.pose.position
+            #t.transform.rotation = p.pose.orientation
+            #self._br.sendTransform(t)
+            
             action.type = action.VIEW
-            pose = t.pose#self.get_pose_from_trans(t)
-            action.poses.poses.append(pose) 
+            action.pose = h
             cmd = Command()
             cmd.type = cmd.EXEC
             cmd.core_action.append(action)

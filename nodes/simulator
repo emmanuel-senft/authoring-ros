@@ -56,11 +56,15 @@ class Simulator(object):
         self._desired_joint_pose = None
 
         self._virtual = rospy.get_param('~only_virtual')
+        self._cam_control = False
 
     #Serious scaling issue...
     def on_pose(self, msg):
         goal = msg.pose
-        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "sim_end_effector", rospy.Time(0))
+        ee_frame = "sim_end_effector"
+        if self._cam_control:
+            ee_frame = "rotated_camera"
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         if msg.sel_vector[0] == 0:
             goal.position.x = t.transform.translation.x
         if msg.sel_vector[1] == 0:
@@ -76,7 +80,10 @@ class Simulator(object):
         vel.angular.x = angular[0]
         vel.angular.y = angular[1]
         vel.angular.z = angular[2]
-        self._cart_vel_pub.publish(vel)
+        if self._cam_control:
+            self._cart_vel_cam_pub.publish(vel)
+        else:
+            self._cart_vel_pub.publish(vel)
 
     def init_states(self):
         joint = JointState()
@@ -136,12 +143,17 @@ class Simulator(object):
                 joint.position = list(self._current_joint)
                 self._viz_pub.publish(joint)
                 self._sim = False
+            self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
         if cmd == "start_sim":
             if not self._sim:
                 self._pre_sim_joints = copy.deepcopy(self._current_joint)
                 self._sim = True
         if cmd == "start_exec":
             self._sim = False
+        if cmd == "start_cam":
+            self._cam_control = True
+        else:
+            self._cam_control = False
     
     def on_command(self, msg):
         if msg.data == "grasp":

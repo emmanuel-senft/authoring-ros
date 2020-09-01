@@ -130,12 +130,11 @@ class Planner(object):
             move.pose = action.pose
             plan.append(move)
 
-        if action.type == action.MOVE:
+        if action.type == action.CAMERA_VELOCITY:
             move = Action(sim=Bool(sim))
             move.finished.data = False
-            move.type = move.MOVE
-            move.pose = self._tl.transformPose(REFERENCE_FRAME, ref_pose)
-            #move.pose.pose.orientation = q
+            move.type = move.CAMERA_VELOCITY
+            move.velocity  = action.velocity
             plan.append(move)
 
         if action.type == action.PICK:

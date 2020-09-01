@@ -3,7 +3,7 @@ import rospy
 import actionlib
 import authoring_msgs.msg
 from panda_ros_msgs.msg import HybridPose, JointPose
-from geometry_msgs.msg import PoseStamped, Pose, Wrench
+from geometry_msgs.msg import PoseStamped, Pose, Wrench, TwistStamped
 from std_msgs.msg import Bool, String
 from sensor_msgs.msg import JointState
 import tf
@@ -55,6 +55,8 @@ class AuthoringAction(object):
         
         self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
         self._angle_pub = rospy.Publisher("/panda/joint_pose", JointPose, queue_size = 5)
+        self._cart_vel_pub = rospy.Publisher("/panda/cart_velocity", TwistStamped, queue_size = 5)
+
         self._event_pub = rospy.Publisher("/event",String,queue_size = 5)
 
         # Simulator
@@ -63,6 +65,13 @@ class AuthoringAction(object):
         self._sim_command_pub = rospy.Publisher("/simulator/commands", String, queue_size=5)
         self._sim_pose_pub = rospy.Publisher("/simulator/hybrid_pose", HybridPose, queue_size=5)
         self._sim_event_sub = rospy.Subscriber("/simulator/events", String, self.on_sim_event)
+
+        # Camera Control
+        self._chain_pub = rospy.Publisher("/panda/set_kinematic_chain", String, queue_size=2)
+        self._link_pub = rospy.Publisher("/panda/set_ee_link", String, queue_size=2)
+
+        self._camera_control = False
+        self._velocity_sent = False
         
         # Lambda for event
         self._on_success = None
@@ -102,11 +111,20 @@ class AuthoringAction(object):
         self._found_hole = False
         self._z_plane = None
         self._starting_time = rospy.Time.now()
-        self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
-        if goal.goal.type == goal.goal.MOVE_FORCE:
-            goal.goal.pose.pose.position.z = self._starting_pose.pose.position.z
+        self._velocity_sent = False
+        if goal.goal.type != goal.goal.VIEW and goal.goal.type != goal.goal.CAMERA_VELOCITY:
+            if self._camera_control:
+                self.camera_control(False)
+            self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
+        else:
+            self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "rotated_camera", rospy.Time(0)))
+
+        # WHY?
+        #if goal.goal.type == goal.goal.MOVE_FORCE:
+        #    goal.goal.pose.pose.position.z = self._starting_pose.pose.position.z
         goal.goal.pose.header.stamp = self._starting_time + rospy.Duration(self.get_time_between_pose(self._starting_pose.pose, goal.goal.pose.pose))
         self._current_action = goal.goal
+
         r = rospy.Rate(self._freq)
         while not rospy.is_shutdown() and self._current_action is not None:
             if self._as.is_preempt_requested():
@@ -123,8 +141,8 @@ class AuthoringAction(object):
             self.grasp()
         elif self._current_action.type == self._current_action.RELEASE:
             self.release()
-        elif self._current_action.type == self._current_action.MOVE_TO_CONTACT:
-            if self.move_force():
+        elif self._current_action.type == self._current_action.VIEW:
+            if self.view():
                 self.success()
         elif self._current_action.type == self._current_action.PULL:
             if self.pull():
@@ -134,6 +152,9 @@ class AuthoringAction(object):
                 self.success()
         elif self._current_action.type == self._current_action.INSERT:
             if self.insert():
+                self.success()
+        elif self._current_action.type == self._current_action.CAMERA_VELOCITY:
+            if self.camera_velocity():
                 self.success()
         elif self._current_action.type == self._current_action.MOVE_ANGLE:
             if self.go_to_angle():
@@ -317,7 +338,10 @@ class AuthoringAction(object):
         #goal.sel_vector = [1,1,1,0,0,0]
         #goal.constraint_frame.w=1
         
-        ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+        if self._camera_control:
+            ee_frame = "rotated_camera"
+        else:
+            ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
 
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         linear,angular = self.get_diff_pose_trans(goal.pose,t)
@@ -340,6 +364,43 @@ class AuthoringAction(object):
             return True
     
         return False
+
+    def camera_control(self, start):
+        if self._camera_control == start:
+            return
+        if start:
+            self._event_pub.publish(String("start_cam"))
+            self._chain_pub.publish(String("pandaCamera"))
+            self._link_pub.publish(String("cameraLink"))
+        else:
+            self._event_pub.publish(String("stop_cam"))
+            self._chain_pub.publish(String("pandaFlange"))
+            self._link_pub.publish(String("pandaGripper"))
+        self._camera_control = start
+
+    def view(self):
+        #if wrong mode change
+        self.camera_control(True)
+        return self.go_to_position()
+
+    def camera_velocity(self):
+        self.camera_control(True)
+        if not self._velocity_sent:
+            msg = TwistStamped()
+            msg.twist = self._current_action.velocity
+            msg.header.stamp = rospy.Time.now()+rospy.Duration(.5)
+            self._cart_vel_pub.publish(msg)
+        if (rospy.Time.now() - self._starting_time).to_sec() > .5:
+            msg = TwistStamped()
+            msg.twist.linear.x=random.random()/10000.
+            msg.twist.linear.y=random.random()/10000.
+            msg.twist.linear.z=random.random()/10000.
+            msg.twist.angular.x=random.random()/10000.
+            msg.twist.angular.y=random.random()/10000.
+            msg.twist.angular.z=random.random()/10000.
+            msg.header.stamp = rospy.Time.now()+rospy.Duration(.5)
+            self._cart_vel_pub.publish(msg)
+            return True
 
     def success(self,val = True):
         #TODO Make the robot stop
