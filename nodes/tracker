@@ -43,6 +43,8 @@ class Tracker(object):
         self._cmd = None
         self._tf_array = []
 
+        self._age_threshold = 4
+
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("event", String, self.on_event, queue_size = 1)
@@ -61,10 +63,14 @@ class Tracker(object):
         q = [pose.pose.orientation.x,pose.pose.orientation.y,pose.pose.orientation.z,pose.pose.orientation.w]
         e = euler_from_quaternion(q)
         q = quaternion_from_euler(0,0,e[2])
-        pose.pose.orientation.x = q[0]
-        pose.pose.orientation.y = q[1]
-        pose.pose.orientation.z = q[2]
-        pose.pose.orientation.w = q[3]
+        #pose.pose.orientation.x = q[0]
+        #pose.pose.orientation.y = q[1]
+        #pose.pose.orientation.z = q[2]
+        #pose.pose.orientation.w = q[3]
+        pose.pose.orientation.x = 0
+        pose.pose.orientation.y = 0
+        pose.pose.orientation.z = 0
+        pose.pose.orientation.w = 1
         poi = POI()
         if o.mesh_name == "screw":
             poi.type = poi.SCREW
@@ -75,29 +81,53 @@ class Tracker(object):
         p1.position.x=(p1.position.x+p2.position.x)/2
         p1.position.y=(p1.position.y+p2.position.y)/2
         p1.position.z=(p1.position.z+p2.position.z)/2
-        
+
+    def testFilter(self,o,newPois,minX,maxX,minY,maxY):
+        if not (o.pose.pose.position.x>minX and o.pose.pose.position.x<maxX and o.pose.pose.position.y>minY and o.pose.pose.position.y<maxY):
+                return True
+        toKeep = False
+        for poi in newPois:
+            if self.get_diff_poses(o.pose.pose, poi.pose.pose) < .02:
+                toKeep = True
+        return toKeep            
+    
     def on_objects(self, msg):
         if self._moving or self._sim:
             return
+        minX=np.inf
+        maxX=-np.inf
+        minY=np.inf
+        maxY=-np.inf
+        newPois=[]
         for new_o in msg.detected_objects:
             poi = self.get_poi_from_object(new_o)
+            newPois.append(poi)
+            minX = min(minX,poi.pose.pose.position.x)
+            maxX = max(maxX,poi.pose.pose.position.x)
+            minY = min(minY,poi.pose.pose.position.y)
+            maxY = max(maxY,poi.pose.pose.position.y)
             poi.id = 0
             for known_poi in self._objects:
                 if poi.type == known_poi.type:
                     poi.id+=1
                     if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .02:
-                        self.update_poi(known_poi.pose.pose,poi.pose.pose)
+                        self.update_poi(poi.pose.pose,known_poi.pose.pose)
+                        poi.id = known_poi.id
+                        poi.age = known_poi.age+1
                         break
             else:
                 print("new object")
                 self._objects.append(poi)
-        self._estimated_objects = copy.deepcopy(self._objects)
+        #self._objects[:] = [o for o in self._objects if self.testFilter(o,newPois,minX,maxX,minY,maxY)]
+        self._objects = newPois
+        
 
     def on_pois(self, msg):
         if self._init_pois is not None:
             return
         self._init_pois = []
         for p in msg.poi_array:
+            p.age = self._age_threshold
             self._init_pois.append(p)
         self.publish_pois()
 
@@ -134,6 +164,7 @@ class Tracker(object):
             if self._sim:
                 self._sim = False
                 self._estimated_objects = copy.deepcopy(self._objects)
+                self._grasped_object = None
             else:
                 self._objects = copy.deepcopy(self._estimated_objects)
             
@@ -143,7 +174,10 @@ class Tracker(object):
         if self._init_pois is None:
             return
         self._tf_array = []
+        msg = POIArray()
         for poi in self._init_pois+self._objects:
+            if poi.age < self._age_threshold:
+                continue
             poi.pose.header.stamp = rospy.Time(0)
             t = TransformStamped()
             t.header.frame_id = poi.pose.header.frame_id
@@ -157,8 +191,7 @@ class Tracker(object):
             t.transform.rotation.z=poi.pose.pose.orientation.z
             t.transform.rotation.w=poi.pose.pose.orientation.w
             self._tf_array.append(t)
-        msg = POIArray()
-        msg.poi_array = copy.copy(self._init_pois+self._objects)
+            msg.poi_array.append(poi)
         self._poi_pub.publish(msg)
         self._br.sendTransform(self._tf_array)
            
@@ -208,6 +241,8 @@ class Tracker(object):
             name = "screwdriver"
         if poi.type == poi.EDGE:
             name = "edge"
+        if poi.type == poi.BOX:
+            name = "box"
         name += '_' + str(poi.id)
         return name
 
