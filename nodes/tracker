@@ -72,8 +72,7 @@ class Tracker(object):
         pose.pose.orientation.z = 0
         pose.pose.orientation.w = 1
         poi = POI()
-        if o.mesh_name == "screw":
-            poi.type = poi.SCREW
+        poi.type = o.mesh_name
         poi.pose = pose
         return poi
 
@@ -213,7 +212,7 @@ class Tracker(object):
                 p.pose.header.frame_id = REFERENCE_FRAME
                 p.pose.pose = self.get_pose_from_trans(t)
                 
-            if p.type == p.SCREW:
+            if p.type.data == "screw":
                 self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
 
 
@@ -230,21 +229,7 @@ class Tracker(object):
 
 
     def get_name(self, poi):
-        name = ""
-        if poi.type == poi.SCREW:
-            name = "screw"
-        if poi.type == poi.HOLE:
-            name = "hole"
-        if poi.type == poi.PUSHER:
-            name = "pusher"
-        if poi.type == poi.SCREW_DRIVER:
-            name = "screwdriver"
-        if poi.type == poi.EDGE:
-            name = "edge"
-        if poi.type == poi.BOX:
-            name = "box"
-        name += '_' + str(poi.id)
-        return name
+        return poi.type.data + '_' + str(poi.id)
 
     def publish_mesh(self, pose, name, i, color, alpha):
         marker = Marker()

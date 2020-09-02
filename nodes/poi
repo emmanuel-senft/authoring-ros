@@ -6,6 +6,7 @@ import signal
 import sys
 from geometry_msgs.msg import PoseStamped, PoseArray, Quaternion, TransformStamped
 from authoring_msgs.msg import POI, POIArray
+from std_msgs.msg import String
 import tf
 import tf2_ros
 import copy
@@ -31,13 +32,13 @@ class Poi(object):
         poi_init.pose.pose.position.z=.08
         poi_init.pose.pose.orientation.w=1
         poi_init.pose.header.frame_id = REFERENCE_FRAME
-        poi_init.type = poi_init.SCREW
+        poi_init.type = String("screw")
         poi_init.id = 0
         #self._array.poi_array.append(poi_init)
         screw_n = 0
         hole_n = 0
         box_poi = copy.deepcopy(poi_init)
-        box_poi.type = box_poi.BOX
+        box_poi.type = String("box")
         box_poi.pose.pose.position.x+=.12
         box_poi.pose.pose.position.y+=0.05
         box_poi.pose.pose.position.z+=0.05
@@ -80,7 +81,7 @@ class Poi(object):
                 poi.pose.pose.position.z+=off_z
                 poi.id = hole_n
                 hole_n += 1
-                poi.type = poi.HOLE
+                poi.type = String("hole")
                 self._array.poi_array.append(poi)
         off_x=-.135
         off_y=.485
