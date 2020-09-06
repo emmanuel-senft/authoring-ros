@@ -160,7 +160,15 @@ class AuthoringAction(object):
         elif self._current_action.type == self._current_action.MOVE_ANGLE:
             if self.go_to_angle():
                 self.success()
-        
+    
+    def grasped(self):
+        self._event_pub.publish(String("grasped;"+self._current_action.item.data))
+        self._cart_vel_pub.publish(TwistStamped())
+
+    def released(self):
+        self._event_pub.publish(String("released;"+self._current_action.item.data))
+        self._cart_vel_pub.publish(TwistStamped())
+
     def grasp(self):
         if self._waiting_for is None:
             h = HybridPose()
@@ -172,7 +180,7 @@ class AuthoringAction(object):
                 self._sim_command_pub.publish("grasp")
             else:
                 self._command_pub.publish("grasp")
-            self._on_success = lambda: self._event_pub.publish(String("grasped;"+self._current_action.item.data))
+            self._on_success = self.grasped
 
     def release(self):
         if self._waiting_for is None:
@@ -185,7 +193,7 @@ class AuthoringAction(object):
                 self._sim_command_pub.publish("release")
             else:
                 self._command_pub.publish("release")
-            self._on_success = lambda: self._event_pub.publish(String("released;"+self._current_action.item.data))
+            self._on_success = self.released
 
     def go_to_angle(self):
         if self._current_joint is None:
