@@ -90,6 +90,24 @@ class Planner(object):
             self._gripper_done = True
             self._gripper_acting = False
 
+    #P is Ros Pose, q is Ros Quaternion
+    def get_pose_rot(self, pose, q):
+        p = pose.position
+        o = pose.orientation
+        
+        rot = PyKDL.Rotation.Quaternion(q.x,q.y,q.z,q.w)
+        v = PyKDL.Vector(p.x,p.y,p.z)
+        orientation = PyKDL.Rotation.Quaternion(o.x,o.y,o.z,o.w)
+        v_rot = rot.Inverse()*v
+        q_rot = (rot.Inverse()*orientation).GetQuaternion()
+        pose.position.x = v_rot[0]
+        pose.position.y = v_rot[1]
+        pose.position.z = v_rot[2]
+        pose.orientation.x = q_rot[0]
+        pose.orientation.y = q_rot[1]
+        pose.orientation.z = q_rot[2]
+        pose.orientation.w = q_rot[3]
+
     def add_subaction(self, action, sim, plan = None, sub_action = False):
         if plan is None:
             plan = self._plan
@@ -390,6 +408,7 @@ class Planner(object):
             self.add_subaction(pick,sim,plan,sub_action=True)
 
             move_above = Action(sim=Bool(sim))
+            move_above.pose.constraint_frame.w = 1
             move_above.type = move_above.MOVE
             move_above.finished.data = False
             move_above.pose = copy.deepcopy(p0)
@@ -409,6 +428,7 @@ class Planner(object):
                 p_l.append(self.point_toward(p0.pose,p3.pose,i/n))
                 p_r.append(self.point_toward(p1.pose,p2.pose,i/n))
             base_move = Action(sim=Bool(sim))
+            base_move.pose.constraint_frame.w = 1
             base_move.type = base_move.MOVE_FORCE
             base_move.finished.data = False
             for i in range(int(n)):
@@ -424,6 +444,7 @@ class Planner(object):
             move_above = copy.deepcopy(move_above)
             move_above.pose = copy.deepcopy(move.pose)
             move_above.pose.pose.position.z += .10
+            move_above.pose.constraint_frame.w = 1
             plan.append(move_above)
             release = Action(sim=Bool(sim))
             release.type = release.PLACE
@@ -432,6 +453,7 @@ class Planner(object):
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
+            move_above.pose.constraint_frame.w = 1
             move_above.pose = grasp
             move_to = copy.deepcopy(move_above)
             move_above.pose.pose.position.z+=.05
@@ -458,6 +480,7 @@ class Planner(object):
         #Assume frame are in reference frame
         p.header.frame_id = REFERENCE_FRAME
         p.sel_vector = [1,1,1,0,0,0]
+        p.constraint_frame.w = 1
         #Assume all points have same orientation
         p.pose.orientation = p0.orientation
         p.pose.position.x += p0.position.x + ratio * (p1.position.x-p0.position.x)

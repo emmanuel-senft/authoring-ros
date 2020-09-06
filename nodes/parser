@@ -260,6 +260,7 @@ class Parser(object):
                 action.type = action.MOVE_ANGLE
                 action.joint_pose = self._saved_view[n]
                 pose = HybridPose()
+                pose.constraint_frame.w = 1
                 action.poses.poses.append(pose)
                 cmd = Command()
                 cmd.type = cmd.EXEC
@@ -370,6 +371,7 @@ class Parser(object):
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = action.RESET
             pose = HybridPose()
+            pose.constraint_frame.w = 1
             #pose.position.x = 0.35
             #pose.position.y = 0.
             #pose.position.z = 0.7
@@ -452,6 +454,7 @@ class Parser(object):
             if cmd[0] == "Reset":
                 action.poses.header.frame_id = REFERENCE_FRAME
                 pose = HybridPose()
+                pose.constraint_frame.w = 1
                 action.poses.poses.append(pose)    
             elif cmd[1].find(",") == -1:
                 item_list = cmd[1].split('-')

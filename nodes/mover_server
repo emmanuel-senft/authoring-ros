@@ -117,8 +117,10 @@ class AuthoringAction(object):
             if self._camera_control:
                 self.camera_control(False)
             self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
+            self.get_pose_rot(self._starting_pose.pose,goal.goal.pose.constraint_frame)
         else:
             self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "rotated_camera", rospy.Time(0)))
+            self.get_pose_rot(self._starting_pose.pose,goal.goal.pose.constraint_frame)
 
         # WHY?
         #if goal.goal.type == goal.goal.MOVE_FORCE:
@@ -365,13 +367,27 @@ class AuthoringAction(object):
             ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
 
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+        self.get_trans_rot(t.transform,goal.constraint_frame)
         linear,angular = self.get_diff_pose_trans(goal.pose,t)
 
         linear_threshold = .001
         angular_threshold = .01
-        sel_vector = [goal.sel_vector[0],goal.sel_vector[1],goal.sel_vector[2],goal.sel_vector[3],goal.sel_vector[4],goal.sel_vector[5]]
-
-        if np.all(sel_vector[:3]*np.abs(linear)<linear_threshold) and np.all(sel_vector[3:6]*np.abs(angular)<angular_threshold):
+        sel_vector = np.array([goal.sel_vector[0],goal.sel_vector[1],goal.sel_vector[2],goal.sel_vector[3],goal.sel_vector[4],goal.sel_vector[5]])
+        forces = np.array([goal.wrench.force.x,goal.wrench.force.y,goal.wrench.force.z,goal.wrench.torque.x,goal.wrench.torque.y,goal.wrench.torque.z])
+        
+        #Only use force if necessary
+        # find if force are applied and ( in the wrong direction or close enough)
+        apply_forces = ( sel_vector[:3] == 0) & (np.sign(forces[:3]) != 0 )
+        useless_forces =  (np.sign(linear) != np.sign(forces[:3])) | ( np.abs(linear)<linear_threshold)  
+#
+        ##In this case, make a control in position
+        sel_vector[:3] = sel_vector[:3] | (useless_forces & apply_forces)
+        #print(sel_vector)
+        goal.sel_vector = sel_vector.tolist()
+        # Success condition in go to is when the position specified in the dimensions controlled in position or with a force/torque != 0 is reached
+        mask = np.logical_or(sel_vector, forces)
+        
+        if np.all(mask[:3]*np.abs(linear)<linear_threshold) and np.all(mask[3:6]*np.abs(angular)<angular_threshold):
             return True
     
         progress = min((rospy.Time.now() - self._starting_time).to_sec()/(goal.header.stamp - self._starting_time).to_sec(),1)
@@ -435,6 +451,40 @@ class AuthoringAction(object):
         self._insert_progress = 0
 
 ###### Helper functions ######
+
+    def get_pose_rot(self, pose, q):
+        p = pose.position
+        o = pose.orientation
+        
+        rot = PyKDL.Rotation.Quaternion(q.x,q.y,q.z,q.w)
+        v = PyKDL.Vector(p.x,p.y,p.z)
+        orientation = PyKDL.Rotation.Quaternion(o.x,o.y,o.z,o.w)
+        v_rot = rot.Inverse()*v
+        q_rot = (rot.Inverse()*orientation).GetQuaternion()
+        pose.position.x = v_rot[0]
+        pose.position.y = v_rot[1]
+        pose.position.z = v_rot[2]
+        pose.orientation.x = q_rot[0]
+        pose.orientation.y = q_rot[1]
+        pose.orientation.z = q_rot[2]
+        pose.orientation.w = q_rot[3]
+
+    def get_trans_rot(self, t, q):
+        p = t.translation
+        o = t.rotation
+        
+        rot = PyKDL.Rotation.Quaternion(q.x,q.y,q.z,q.w)
+        v = PyKDL.Vector(p.x,p.y,p.z)
+        orientation = PyKDL.Rotation.Quaternion(o.x,o.y,o.z,o.w)
+        v_rot = rot.Inverse()*v
+        q_rot = (rot.Inverse()*orientation).GetQuaternion()
+        t.translation.x = v_rot[0]
+        t.translation.y = v_rot[1]
+        t.translation.z = v_rot[2]
+        t.rotation.x = q_rot[0]
+        t.rotation.y = q_rot[1]
+        t.rotation.z = q_rot[2]
+        t.rotation.w = q_rot[3]
 
     def get_time_between_pose(self, start, end):
         linear,angular = self.get_diff_poses(start,end)
