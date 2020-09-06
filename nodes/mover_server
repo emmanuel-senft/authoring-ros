@@ -407,11 +407,9 @@ class AuthoringAction(object):
             return
         if start:
             self._event_pub.publish(String("start_cam"))
-            self._chain_pub.publish(String("pandaCamera"))
             self._link_pub.publish(String("cameraLink"))
         else:
             self._event_pub.publish(String("stop_cam"))
-            self._chain_pub.publish(String("pandaFlange"))
             self._link_pub.publish(String("pandaGripper"))
         self._camera_control = start
 
