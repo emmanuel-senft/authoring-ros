@@ -279,6 +279,7 @@ class Parser(object):
                 pose = self.get_pose_from_trans(t)
                 pose.pose.position.x += float(delta[0])/1000.
                 pose.pose.position.y += float(delta[1])/1000.
+                pose.pose.position.z += float(delta[2])/1000.
                 action.poses.poses.append(pose)
                 action.pose = pose
             elif len(cmd) == 1:
