@@ -556,6 +556,10 @@ class Parser(object):
             return a.PLACE 
         if name == 'Move':
             return a.MOVE_OBJECT
+        if name == 'Screw':
+            return a.SCREW
+        if name == 'Unscrew':
+            return a.UNSCREW
         if name == 'Inspect':
             return a.INSPECT
         if name == 'Push':
@@ -564,6 +568,8 @@ class Parser(object):
             return a.MOVE_UNKNOWN
         if name == 'Reset':
             return a.RESET
+        if name == 'Pull':
+            return a.PULL
 
     def distance(self, p1, p2):
         return np.sqrt((p1.x-p2.x)**2+(p1.y-p2.y)**2+(p1.z-p2.z)**2)

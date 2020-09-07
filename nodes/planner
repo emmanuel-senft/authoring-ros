@@ -118,6 +118,52 @@ class Planner(object):
         if action.type == action.MOVE or action.type == action.GRASP or action.type == action.RELEASE:
             plan.append(action)
 
+        if action.type == action.PULL:
+            a = copy.deepcopy(action)
+            a.type = a.MOVE
+            a.pose.constraint_frame = copy.deepcopy(a.pose.pose.orientation)
+            self.get_pose_rot(a.pose.pose,a.pose.pose.orientation)
+            up = copy.deepcopy(a)
+            up.pose.pose.position.z += 0.05
+            grasp = copy.deepcopy(a)
+            grasp.type = grasp.GRASP
+            pull = copy.deepcopy(up)
+            pull.pose.sel_vector = [1,1,0,1,1,1]
+            pull.pose.wrench.force.z = 10
+            release = copy.deepcopy(grasp)
+            release.type = release.RELEASE
+            safe = copy.deepcopy(a)
+            safe.pose.pose.position.z +=.1
+            plan.append(up)
+            plan.append(a)
+            plan.append(grasp)
+            plan.append(pull)
+            plan.append(release)
+            plan.append(safe)
+        
+        if action.type == action.PUSH:
+            a = copy.deepcopy(action)
+            a.type = a.MOVE
+            a.pose.constraint_frame = copy.deepcopy(a.pose.pose.orientation)
+            self.get_pose_rot(a.pose.pose,a.pose.pose.orientation)
+            up = copy.deepcopy(a)
+            up.pose.pose.position.z += 0.05
+            grasp = copy.deepcopy(a)
+            grasp.type = grasp.GRASP
+            push = copy.deepcopy(up)
+            push.pose.sel_vector = [0,0,0,1,1,1]
+            push.pose.wrench.force.z = -10
+            push.pose.pose.position.z -= .1
+            release = copy.deepcopy(grasp)
+            release.type = release.RELEASE
+            safe = copy.deepcopy(a)
+            plan.append(up)
+            plan.append(a)
+            plan.append(grasp)
+            plan.append(push)
+            plan.append(release)
+            plan.append(safe)
+
         if action.type == action.MOVE_OBJECT:
             a1 = Action(sim=Bool(sim))
             a1.type = a1.PICK
@@ -221,10 +267,10 @@ class Planner(object):
             plan.append(move_close)
             plan.append(move_to)
             plan.append(grasp)
-            pull = copy.deepcopy(move_above)
-            pull.pose.pose.position.x += .05
-            pull.type = pull.PULL
             if sub_action:
+                pull = copy.deepcopy(move_above)
+                pull.pose.sel_vector=[0,0,0,1,1,1]
+                pull.pose.wrench.force.z = 20 
                 plan.append(pull)
         if action.type == action.PLACE:
             #print("place")
@@ -281,29 +327,29 @@ class Planner(object):
             move.pose = action.poses.poses[0]
             plan.append(move)
 
-        if action.type == action.PUSH:
-            # "Push"
-            grasp = Action(sim=Bool(sim))
-            grasp.finished.data = False
-            grasp.type = grasp.GRASP
-            grasp.item = String("none")
-            move_above = Action(sim=Bool(sim))
-            move_above.finished.data = False
-            move_above.type = move_above.MOVE
-            move_above.pose = action.poses.poses[0]
-            move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.15
-            move_to.pose.pose.position.z+=.02
-            move_safe = copy.deepcopy(move_above)
-            release = Action(sim=Bool(sim))
-            release.finished.data = False
-            release.type = release.RELEASE
-            release.item = String("none")
-            plan.append(move_above)
-            plan.append(grasp)
-            plan.append(move_to)
-            plan.append(move_safe)
-            plan.append(release)
+        #if action.type == action.PUSH:
+        #    # "Push"
+        #    grasp = Action(sim=Bool(sim))
+        #    grasp.finished.data = False
+        #    grasp.type = grasp.GRASP
+        #    grasp.item = String("none")
+        #    move_above = Action(sim=Bool(sim))
+        #    move_above.finished.data = False
+        #    move_above.type = move_above.MOVE
+        #    move_above.pose = action.poses.poses[0]
+        #    move_to = copy.deepcopy(move_above)
+        #    move_above.pose.pose.position.z+=.15
+        #    move_to.pose.pose.position.z+=.02
+        #    move_safe = copy.deepcopy(move_above)
+        #    release = Action(sim=Bool(sim))
+        #    release.finished.data = False
+        #    release.type = release.RELEASE
+        #    release.item = String("none")
+        #    plan.append(move_above)
+        #    plan.append(grasp)
+        #    plan.append(move_to)
+        #    plan.append(move_safe)
+        #    plan.append(release)
         
         if action.type == action.SCREW:
             #print("screw")

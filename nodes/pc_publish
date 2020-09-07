@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import rospy
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import PointCloud2, Image
 import numpy as np
 import sys
 import rospkg
@@ -10,11 +10,17 @@ def sender():
     print("reading")
     msg = PointCloud2()
     rospack = rospkg.RosPack()
-    path = rospack.get_path('authoring')+'/pc/pc.txt'
+    path = rospack.get_path('authoring')+'/saved_msgs/pc.txt'
     with open(path, 'rb') as infile:
         msg.deserialize(infile.read())
     msg.header.frame_id = 'static_camera_link'
     pub = rospy.Publisher("/filtered_cloud",PointCloud2, queue_size =1, latch = True)
+    pub.publish(msg)
+    path = rospack.get_path('authoring')+'/saved_msgs/depth.txt'
+    msg = Image()
+    with open(path, 'rb') as infile:
+        msg.deserialize(infile.read())
+    pub = rospy.Publisher("/depth_to_rgb/image_raw",Image, queue_size =1, latch = True)
     pub.publish(msg)
     rospy.spin()
 
