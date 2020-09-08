@@ -32,7 +32,6 @@ class Tracker(object):
         self._marker_pub = rospy.Publisher("/viz/meshes", Marker, queue_size=1)
 
         self._init_pois = None
-        self._estimated_objects = []
         self._objects = []
         self._moving = False
         self._moving_timer = None
@@ -43,7 +42,7 @@ class Tracker(object):
         self._cmd = None
         self._tf_array = []
 
-        self._age_threshold = 4
+        self._age_threshold = 3
 
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
@@ -97,10 +96,14 @@ class Tracker(object):
         maxX=-np.inf
         minY=np.inf
         maxY=-np.inf
-        newPois=[]
+        for o in self._objects:
+            #print("id "+str(o.id))
+            #print(o.age)
+            if o.age > 0:
+                o.age -= 1
+
         for new_o in msg.detected_objects:
             poi = self.get_poi_from_object(new_o)
-            newPois.append(poi)
             minX = min(minX,poi.pose.pose.position.x)
             maxX = max(maxX,poi.pose.pose.position.x)
             minY = min(minY,poi.pose.pose.position.y)
@@ -110,15 +113,16 @@ class Tracker(object):
                 if poi.type == known_poi.type:
                     poi.id+=1
                     if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .02:
-                        self.update_poi(poi.pose.pose,known_poi.pose.pose)
-                        poi.id = known_poi.id
-                        poi.age = known_poi.age+1
+                        self.update_poi(known_poi.pose.pose,poi.pose.pose)
+                        if known_poi.age<252:
+                            known_poi.age += 2
                         break
             else:
                 print("new object")
+                poi.age = 1
                 self._objects.append(poi)
         #self._objects[:] = [o for o in self._objects if self.testFilter(o,newPois,minX,maxX,minY,maxY)]
-        self._objects = newPois
+        #self._objects = newPois
         
 
     def on_pois(self, msg):
@@ -133,7 +137,6 @@ class Tracker(object):
     def on_simulated_objects(self, msg):
         for p in msg.poi_array:
             self._objects.append(p)
-        self._estimated_objects = copy.deepcopy(self._objects)
 
     def on_command(self, msg):
         self._cmd = msg
@@ -145,13 +148,13 @@ class Tracker(object):
     def on_event(self, msg):
         event = msg.data.split(';')
         if event[0] == "start_sim":
-            self._estimated_objects = copy.deepcopy(self._objects)
             self._sim = True
         if event[0] == "grasped":
             self._grasped_object = event[1]
             print("grasping "+self._grasped_object)
         if event[0] == "released":
             self._grasped_object = None
+
         if event[0] == "start_exec":
             self._moving = True
             if self._moving_timer is not None:
@@ -162,12 +165,42 @@ class Tracker(object):
             self._moving_timer.start()
             if self._sim:
                 self._sim = False
-                self._estimated_objects = copy.deepcopy(self._objects)
                 self._grasped_object = None
-            else:
-                self._objects = copy.deepcopy(self._estimated_objects)
             
             self.publish_pois()
+
+    def get_transform(self, poi):
+        if self.get_name(poi) == self._grasped_object:
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
+            poi.pose.header.frame_id = REFERENCE_FRAME
+            poi.pose.pose.position = self.get_pose_from_trans(t).position
+            poi.age = 20
+        t = TransformStamped()
+        t.header.frame_id = poi.pose.header.frame_id
+        t.child_frame_id = self.get_name(poi)
+        t.header.stamp = rospy.Time.now()
+        t.transform.translation.x=poi.pose.pose.position.x
+        t.transform.translation.y=poi.pose.pose.position.y
+        t.transform.translation.z=poi.pose.pose.position.z
+        t.transform.rotation.x=poi.pose.pose.orientation.x
+        t.transform.rotation.y=poi.pose.pose.orientation.y
+        t.transform.rotation.z=poi.pose.pose.orientation.z
+        t.transform.rotation.w=poi.pose.pose.orientation.w
+        index = -1
+        d = np.inf
+
+        if poi.type.data == "screw" and self.get_name(poi) != self._grasped_object:
+            for i,p in enumerate(self._init_pois):
+                if p.type.data == "hole":
+                    temp_d = self.get_diff_poses(poi.pose.pose,p.pose.pose) 
+                    if temp_d < d:
+                        d = temp_d
+                        index = i
+                        
+        if d < .04:
+            t.transform.translation.x = self._init_pois[index].pose.pose.position.x
+            t.transform.translation.y = self._init_pois[index].pose.pose.position.y
+        return t   
 
     def publish_pois(self):
         if self._init_pois is None:
@@ -178,17 +211,8 @@ class Tracker(object):
             if poi.age < self._age_threshold:
                 continue
             poi.pose.header.stamp = rospy.Time(0)
-            t = TransformStamped()
-            t.header.frame_id = poi.pose.header.frame_id
-            t.child_frame_id = self.get_name(poi)
-            t.header.stamp = rospy.Time.now()
-            t.transform.translation.x=poi.pose.pose.position.x
-            t.transform.translation.y=poi.pose.pose.position.y
-            t.transform.translation.z=poi.pose.pose.position.z
-            t.transform.rotation.x=poi.pose.pose.orientation.x
-            t.transform.rotation.y=poi.pose.pose.orientation.y
-            t.transform.rotation.z=poi.pose.pose.orientation.z
-            t.transform.rotation.w=poi.pose.pose.orientation.w
+
+            t = self.get_transform(poi)
             self._tf_array.append(t)
             msg.poi_array.append(poi)
         self._poi_pub.publish(msg)
@@ -205,15 +229,15 @@ class Tracker(object):
         pose.orientation.w = t.transform.rotation.w
         return pose
 
-    def publish_meshes(self):
-        for p in self._estimated_objects:
-            if self.get_name(p) == self._grasped_object:
-                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
-                p.pose.header.frame_id = REFERENCE_FRAME
-                p.pose.pose = self.get_pose_from_trans(t)
-                
-            if p.type.data == "screw":
-                self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
+    #def publish_meshes(self):
+    #    for p in self._estimated_objects:
+    #        if self.get_name(p) == self._grasped_object:
+    #            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
+    #            p.pose.header.frame_id = REFERENCE_FRAME
+    #            p.pose.pose = self.get_pose_from_trans(t)
+    #            
+    #        if p.type.data == "screw":
+    #            self.publish_mesh(p.pose.pose, "screw", p.id, "#a9a9a9",.70)
 
 
     #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
@@ -250,7 +274,7 @@ class Tracker(object):
     def run(self):
         r = rospy.Rate(20)
         while not rospy.is_shutdown():
-            self.publish_meshes()
+            #self.publish_meshes()
             self.publish_pois()
             r.sleep()
 

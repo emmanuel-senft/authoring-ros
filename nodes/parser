@@ -91,6 +91,8 @@ class Parser(object):
                 for p in self._pois:
                     #Inform interface of poi
                     pixel = self.get_pixel_from_pose(p.pose)
+                    if pixel is None:
+                        continue
                     name = self.get_name(p)
                     self._poi_gui+=name+":"+pixel+";"
 
@@ -155,6 +157,8 @@ class Parser(object):
     def get_pixel_from_pose(self, pose):
         p = self._tfBuffer.transform(pose,CAMERA_FRAME)
         p = p.pose.position
+        if p.z < 0:
+            return None
         p=[p.x,p.y,p.z]
         pixel = self._model.project3dToPixel(p)
         return str(int(pixel[0]))+","+str(int(pixel[1]))

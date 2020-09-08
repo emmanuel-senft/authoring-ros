@@ -40,7 +40,7 @@ class Poi(object):
         hole_n = 0
         box_poi = copy.deepcopy(poi_init)
         box_poi.type = String("box")
-        box_poi.pose.pose.position.x+=.12
+        box_poi.pose.pose.position.x+=.07
         box_poi.pose.pose.position.y+=0.05
         box_poi.pose.pose.position.z+=0.08
         self._array.poi_array.append(box_poi)
@@ -62,7 +62,7 @@ class Poi(object):
         #    hole_n += 1
         #    poi.type = poi.HOLE
         #    self._array.poi_array.append(poi)
-        off_x=-.197-.036
+        off_x=-.197-.036 -.052
         off_y=-.001
         off_z=-.015
         for i in range(6):
