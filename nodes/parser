@@ -101,6 +101,8 @@ class Parser(object):
                 done = True
             except:
                 pass
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'end_effector', rospy.Time(0)).transform.translation
+        self._gui_pub.publish("panda_pose;"+str(t.x)+","+str(t.y)+","+str(t.z))
 
     def get_vect(self, v):
         toreturn = []
