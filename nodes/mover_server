@@ -176,11 +176,9 @@ class AuthoringAction(object):
     
     def grasped(self):
         self._event_pub.publish(String("grasped;"+self._current_action.item.data))
-        self._cart_vel_pub.publish(TwistStamped())
 
     def released(self):
         self._event_pub.publish(String("released;"+self._current_action.item.data))
-        self._cart_vel_pub.publish(TwistStamped())
 
     def grasp(self):
         if self._waiting_for is None:
@@ -200,10 +198,6 @@ class AuthoringAction(object):
 
     def release(self):
         if self._waiting_for is None:
-            h = HybridPose()
-            h.constraint_frame.w = 1
-            h.sel_vector=[0,0,0,0,0,0]
-            #self._pose_pub.publish(h)
             self._waiting_for = "release_finished"
             if self._virtual or self._current_action.sim.data:
                 self._sim_command_pub.publish("release")
@@ -219,7 +213,7 @@ class AuthoringAction(object):
             diff.append(joint-self._current_joint.position[i])
         max_diff = max(diff,key=abs)
         threshold = .005
-        if self._angle_move and (np.fabs(max_diff) < threshold or rospy.Time.now() > self._angle_time) :
+        if self._angle_move and (np.fabs(max_diff) < threshold):# or rospy.Time.now() > self._angle_time) :
             self._angle_move = False
             return True
         if not self._angle_move:
@@ -304,11 +298,8 @@ class AuthoringAction(object):
             pose.wrench.force.z *= 2
             print("found_hole")        
 
-        
-        if self._virtual or self._current_action.sim.data:
-            self._sim_pose_pub.publish(pose)
-        else:
-            self._pose_pub.publish(pose)
+        self.publish_pose(pose)
+
         return False
 
     def move_force(self):
@@ -324,7 +315,6 @@ class AuthoringAction(object):
         
         linear_threshold = .001
         angular_threshold = .01
-        
         if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold):
             self._reached_position = True
             return True
@@ -336,10 +326,7 @@ class AuthoringAction(object):
         goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
         goal.wrench.force.z = self._push_force
         
-        if self._virtual or self._current_action.sim.data:
-            self._sim_pose_pub.publish(goal)
-        else:
-            self._pose_pub.publish(goal)
+        self.publish_pose(goal)
         
         return False
 
@@ -361,11 +348,8 @@ class AuthoringAction(object):
             return True
         goal.wrench.force.z = -2*self._push_force
         
-        if self._virtual or self._current_action.sim.data:
-            self._sim_pose_pub.publish(goal)
-        else:
-            self._pose_pub.publish(goal)
-        
+        self.publish_pose(goal)
+
         return False
 
     def go_to_position(self):
@@ -406,12 +390,10 @@ class AuthoringAction(object):
         progress = min((rospy.Time.now() - self._starting_time).to_sec()/(goal.header.stamp - self._starting_time).to_sec(),1)
         progress = min(progress,1)
         goal.pose = self.interpolate_poses(self._starting_pose.pose, goal.pose,progress)
-        if self._virtual or self._current_action.sim.data:
-            self._sim_pose_pub.publish(goal)
-        else:
-            self._pose_pub.publish(goal)
-        if progress == 1:
-            return True
+        
+        self.publish_pose(goal)
+        #if progress == 1:
+        #    return True
     
         return False
 
@@ -460,7 +442,23 @@ class AuthoringAction(object):
         self._current_action = None
         self._search_theta = 0
         self._insert_progress = 0
+        self._cart_vel_pub.publish(TwistStamped())
 
+
+
+    def publish_pose(self, pose):
+        pose.wrench.force.x += self._bias.force.x
+        pose.wrench.force.y += self._bias.force.y
+        pose.wrench.force.z += self._bias.force.z
+
+        pose.wrench.torque.x += self._bias.torque.x
+        pose.wrench.torque.y += self._bias.torque.y
+        pose.wrench.torque.z += self._bias.torque.z
+
+        if self._virtual or self._current_action.sim.data:
+            self._sim_pose_pub.publish(pose)
+        else:
+            self._pose_pub.publish(pose)
 ###### Helper functions ######
 
     def get_pose_rot(self, pose, q):
@@ -519,7 +517,6 @@ class AuthoringAction(object):
         if d < -np.pi:
             angular[2] += 2 * np.pi 
         return (linear,angular)
-    
     
     def get_diff_pose_trans(self,pose, t):
         trans = t.transform.translation
