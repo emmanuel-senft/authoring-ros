@@ -125,10 +125,12 @@ class Planner(object):
             self.get_pose_rot(a.pose.pose,a.pose.pose.orientation)
             up = copy.deepcopy(a)
             up.pose.pose.position.z += 0.05
+            bias = copy.deepcopy(a)
+            bias.type = bias.BIAS_FORCES
             grasp = copy.deepcopy(a)
             grasp.type = grasp.GRASP
             pull = copy.deepcopy(up)
-            pull.pose.sel_vector = [1,1,0,1,1,1]
+            pull.pose.sel_vector = [0,0,0,1,1,1]
             pull.pose.wrench.force.z = 10
             release = copy.deepcopy(grasp)
             release.type = release.RELEASE
@@ -136,6 +138,7 @@ class Planner(object):
             safe.pose.pose.position.z +=.1
             plan.append(up)
             plan.append(a)
+            plan.append(bias)
             plan.append(grasp)
             plan.append(pull)
             plan.append(release)
@@ -148,6 +151,8 @@ class Planner(object):
             self.get_pose_rot(a.pose.pose,a.pose.pose.orientation)
             up = copy.deepcopy(a)
             up.pose.pose.position.z += 0.05
+            bias = copy.deepcopy(a)
+            bias.type = bias.BIAS_FORCES
             grasp = copy.deepcopy(a)
             grasp.type = grasp.GRASP
             push = copy.deepcopy(up)
@@ -159,6 +164,7 @@ class Planner(object):
             safe = copy.deepcopy(a)
             plan.append(up)
             plan.append(a)
+            plan.append(bias)
             plan.append(grasp)
             plan.append(push)
             plan.append(release)
@@ -193,7 +199,12 @@ class Planner(object):
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = String(action.item.data.split("_")[0])
+
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
+
             plan.append(move_above)
+            plan.append(bias)
             plan.append(move_close)
             plan.append(move_to)
             plan.append(grasp)
@@ -213,6 +224,7 @@ class Planner(object):
             release.finished.data = False
             release.type = grasp.RELEASE
             release.item = String(action.item.data.split("_")[1])
+
             plan.append(move_above)
             plan.append(move_close)
             plan.append(move_to)
@@ -263,15 +275,21 @@ class Planner(object):
             grasp.finished.data = False
             grasp.type = grasp.GRASP
             grasp.item = action.item
+
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
+
             plan.append(move_above)
+            plan.append(bias)
             plan.append(move_close)
             plan.append(move_to)
             plan.append(grasp)
-            if sub_action:
-                pull = copy.deepcopy(move_above)
-                pull.pose.sel_vector=[0,0,0,1,1,1]
-                pull.pose.wrench.force.z = 20 
-                plan.append(pull)
+            #if sub_action:
+            pull = copy.deepcopy(move_above)
+            pull.pose.sel_vector=[0,0,0,1,1,1]
+            pull.pose.wrench.force.z = 20 
+            plan.append(pull)
+            
         if action.type == action.PLACE:
             #print("place")
             move_above = Action(sim=Bool(sim))
@@ -384,8 +402,12 @@ class Planner(object):
             plus.pose.sel_vector = [0,0,0,1,1,1]
             plus.pose.wrench.force.z=-5
 
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
+            
             plan.append(move_above)
-            plan.append(minus)
+            plan.append(minus) 
+            plan.append(bias)
             plan.append(grasp)
             plan.append(plus)
             plan.append(release)
@@ -427,9 +449,13 @@ class Planner(object):
             minus.pose.pose.position.z+=.002
             minus.pose.sel_vector = [0,0,1,1,1,1]
             #minus.pose.wrench.force.z=5
-
+            
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
+            
             plan.append(move_above)
             plan.append(plus)
+            plan.append(bias)
             plan.append(grasp)
             plan.append(minus)
             plan.append(release)
@@ -570,6 +596,8 @@ class Planner(object):
             return "Insert"
         if action.type == action.MOVE_UNKNOWN:
             return "Move"
+        if action.type == action.BIAS_FORCES:
+            return "Bias"
         return ""
 
     def cancel_motion(self):

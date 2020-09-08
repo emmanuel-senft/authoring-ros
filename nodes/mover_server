@@ -77,6 +77,8 @@ class AuthoringAction(object):
         # Lambda for event
         self._on_success = None
 
+        self._bias = Wrench()
+
     def on_state(self, msg):
         self._current_joint = msg
 
@@ -94,6 +96,11 @@ class AuthoringAction(object):
 
     def on_wrench(self,msg):
         self._wrench = msg
+
+    def bias_forces(self):
+        self._bias = copy.deepcopy(self._wrench)
+        print("biasing")
+        print(self._bias)
 
     def execute_cb(self, goal):
         #while(not self._as.is_preempt_requested()):
@@ -113,6 +120,10 @@ class AuthoringAction(object):
         self._z_plane = None
         self._starting_time = rospy.Time.now()
         self._velocity_sent = False
+        if goal.goal.type == goal.goal.BIAS_FORCES:
+            self.bias_forces() 
+            self.success()
+            return
         if goal.goal.type != goal.goal.VIEW and goal.goal.type != goal.goal.CAMERA_VELOCITY:
             if self._camera_control:
                 self.camera_control(False)
@@ -173,11 +184,13 @@ class AuthoringAction(object):
 
     def grasp(self):
         if self._waiting_for is None:
-            if self._current_action.item.data.split("_")[0] != "drawer":
-                h = HybridPose()
-                h.constraint_frame.w = 1
-                h.sel_vector=[0,0,0,0,0,0]
-                self._pose_pub.publish(h)
+            ee_frame = ('sim_' if self._current_action.sim.data else '') + 'end_effector'
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+            h = HybridPose()
+            h.constraint_frame = t.transform.rotation
+            h.sel_vector=[0,0,0,0,0,0]
+
+            self.publish_pose(h)
             self._waiting_for = "grasp_finished"
             if self._virtual or self._current_action.sim.data:
                 self._sim_command_pub.publish("grasp")
