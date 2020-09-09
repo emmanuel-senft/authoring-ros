@@ -46,7 +46,6 @@ class Parser(object):
         self._model.fromCameraInfo(rospy.wait_for_message(self._camera_topic+"camera_info", CameraInfo))
 
         self._gui_pub = rospy.Publisher("/parser/gui_info",String,queue_size=1)
-        self._vel_pub = rospy.Publisher("/panda/cart_vel",Twist,queue_size=1)
         self._panda_command = rospy.Publisher("/panda/commands",String, queue_size=1)
 
         self._br = tf2_ros.TransformBroadcaster()
@@ -478,6 +477,7 @@ class Parser(object):
                     moved[item_list[0]].pose.position.z+=.015
                 else:
                     action.item = String(item_list[0])
+                action.pose = action.poses.poses[0]
             else:
                 if name == 'Move':
                     action.type = action.MOVE_UNKNOWN

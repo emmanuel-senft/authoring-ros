@@ -464,7 +464,6 @@ class AuthoringAction(object):
             return True
 
     def success(self,val = True):
-        #TODO Make the robot stop
         if val and self._on_success is not None:
             self._on_success()
         self._on_success = None
@@ -473,9 +472,8 @@ class AuthoringAction(object):
         self._current_action = None
         self._search_theta = 0
         self._insert_progress = 0
+        rospy.sleep(.001)
         self._cart_vel_pub.publish(TwistStamped())
-
-
 
     def publish_pose(self, pose):
         pose.wrench.force.x += self._bias.force.x
@@ -485,11 +483,11 @@ class AuthoringAction(object):
         pose.wrench.torque.x += self._bias.torque.x
         pose.wrench.torque.y += self._bias.torque.y
         pose.wrench.torque.z += self._bias.torque.z
-
         if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(pose)
         else:
             self._pose_pub.publish(pose)
+            
 ###### Helper functions ######
 
     def get_pose_rot(self, pose, q):

@@ -155,10 +155,10 @@ class Planner(object):
             bias.type = bias.BIAS_FORCES
             grasp = copy.deepcopy(a)
             grasp.type = grasp.GRASP
-            push = copy.deepcopy(up)
+            push = copy.deepcopy(a)
             push.pose.sel_vector = [0,0,0,1,1,1]
             push.pose.wrench.force.z = -10
-            push.pose.pose.position.z -= .1
+            push.pose.pose.position.z -= .05
             release = copy.deepcopy(grasp)
             release.type = release.RELEASE
             safe = copy.deepcopy(a)
@@ -598,6 +598,8 @@ class Planner(object):
             return "Move"
         if action.type == action.BIAS_FORCES:
             return "Bias"
+        if action.type == action.PULL:
+            return "Pull"
         return ""
 
     def cancel_motion(self):
