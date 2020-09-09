@@ -41,17 +41,20 @@ class AuthoringAction(object):
         self._found_hole = False
         self._z_plane = None
         self._current_joint = None
+
         self._virtual = rospy.get_param('~only_virtual')
         #TODO To fix
         self._angle_time = rospy.Time.now()
         self._as = actionlib.SimpleActionServer(self._action_name, authoring_msgs.msg.AuthoringAction, execute_cb=self.execute_cb, auto_start = False)
         self._as.start()
+        
         # create messages that are used to publish feedback/result
         self._feedback = authoring_msgs.msg.AuthoringFeedback()
         self._result = authoring_msgs.msg.AuthoringResult()
         self._pose_pub = rospy.Publisher("/panda/hybrid_pose", HybridPose, queue_size=5)
         self._command_pub = rospy.Publisher("/panda/commands", String, queue_size=5)
-        self._event_sub = rospy.Subscriber("/panda/events", String, self.on_event)
+        self._event_sub = rospy.Subscriber("/panda/events", String, self.on_panda_event)
+        self._event_sub = rospy.Subscriber("/event", String, self.on_event)
         self._wrench_sub = rospy.Subscriber("/panda/control_wrench", Wrench, self.on_wrench)
         
         self._panda_angle_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_state, queue_size=1)
@@ -79,6 +82,10 @@ class AuthoringAction(object):
 
         self._bias = Wrench()
 
+        # Pause
+        self._pause = False
+        self._start_pause_time = None
+
     def on_state(self, msg):
         self._current_joint = msg
 
@@ -86,13 +93,29 @@ class AuthoringAction(object):
         if self._virtual or (self._current_action is not None and self._current_action.sim.data):
             self._current_joint = msg
 
-    def on_event(self, msg):
+    def on_panda_event(self, msg):
         if msg.data == self._waiting_for:
-            self.success()
+            if not self._pause:
+                self.success()
+            else:
+                self._waiting_for = "finished"
+
+    def on_event(self, msg):
+        if msg.data == "pause":
+            self._pause = True
+            self._start_pause_time = rospy.Time.now()
+        if msg.data == "play":
+            dt = rospy.Time.now() - self._start_pause_time
+            self._starting_time += dt
+            self._current_action.pose.header.stamp += dt
+            self._pause = False     
 
     def on_sim_event(self, msg):
         if msg.data == self._waiting_for:
-            self.success()
+            if not self._pause:
+                self.success()
+            else:
+                self._waiting_for = "finished"
 
     def on_wrench(self,msg):
         self._wrench = msg
@@ -120,6 +143,7 @@ class AuthoringAction(object):
         self._z_plane = None
         self._starting_time = rospy.Time.now()
         self._velocity_sent = False
+        self._pause = False
         if goal.goal.type == goal.goal.BIAS_FORCES:
             self.bias_forces() 
             self.success()
@@ -148,7 +172,9 @@ class AuthoringAction(object):
             r.sleep()
 
     def update_command(self):
-        if self._current_action and (self._current_action.type == self._current_action.MOVE or self._current_action.type == self._current_action.STOP):
+        if self._pause:
+            self._cart_vel_pub.publish(TwistStamped())
+        elif self._current_action and (self._current_action.type == self._current_action.MOVE or self._current_action.type == self._current_action.STOP):
             if self.go_to_position():
                 self.success()
         elif self._current_action.type == self._current_action.GRASP:
@@ -195,15 +221,20 @@ class AuthoringAction(object):
             else:
                 self._command_pub.publish("grasp")
             self._on_success = self.grasped
+        if self._waiting_for == "finished":
+            self.success()
 
     def release(self):
         if self._waiting_for is None:
+            self._cart_vel_pub.publish(TwistStamped())
             self._waiting_for = "release_finished"
             if self._virtual or self._current_action.sim.data:
                 self._sim_command_pub.publish("release")
             else:
                 self._command_pub.publish("release")
             self._on_success = self.released
+        if self._waiting_for == "finished":
+            self.success()
 
     def go_to_angle(self):
         if self._current_joint is None:
