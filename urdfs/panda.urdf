@@ -273,7 +273,7 @@
     <!--<origin xyz="-0.032 0.038 0.031" rpy="-2.731 -1.517 -1.209" />-->
     <!--<origin xyz="-0.052 -0.008 -0.071" rpy="-1.553 -0.582 -1.587" />-->
     <!--<origin xyz="0.032 -0.064 0.053" rpy="-0.389 -1.554 2.542" />-->
-    <origin rpy="3.14 -1.57 -0.785" xyz="0.025 -0.065 0.01"/>
+    <origin rpy="3.14 -1.57 -0.785" xyz="0.029 -0.056 0.01"/>
   </joint>
   <joint name="camera_base_to_body" type="fixed">
     <parent link="camera_base"/>
