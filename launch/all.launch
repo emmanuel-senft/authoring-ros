@@ -32,7 +32,7 @@
     </node>
 
     <group if="$(arg only_virtual)">
-        <node pkg="authoring" type="static_publisher" name="end_effector_static_publisher">
+        <node pkg="authoring" type="static_publisher" name="panda_gripper_static_publisher">
             <param name="file_name" type="string" value="transforms.yaml" />
             <param name="transform" type="string" value="sim_robot_transform" />
         </node>

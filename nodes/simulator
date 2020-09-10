@@ -62,7 +62,7 @@ class Simulator(object):
     #Serious scaling issue...
     def on_pose(self, msg):
         goal = msg.pose
-        ee_frame = "sim_end_effector"
+        ee_frame = "sim_panda_gripper"
         if self._cam_control:
             ee_frame = "rotated_camera"
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))

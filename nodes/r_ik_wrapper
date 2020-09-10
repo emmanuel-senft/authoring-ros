@@ -64,7 +64,7 @@ class Ik_Wrapper(object):
             self._stop = True
             return
         self._stop = False
-        ee_frame = 'sim_end_effector'
+        ee_frame = 'sim_panda_gripper'
         (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
 
         factor = 2

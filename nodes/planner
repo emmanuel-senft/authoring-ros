@@ -706,7 +706,7 @@ class Planner(object):
     def display_path(self):
         path = Path()
         path.header.frame_id = REFERENCE_FRAME
-        ee_frame = 'sim_end_effector'
+        ee_frame = 'sim_panda_gripper'
         (trans,rot) = self._tl.lookupTransform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         EE_pose = PoseStamped()
         EE_pose.pose.position.x = trans[0]

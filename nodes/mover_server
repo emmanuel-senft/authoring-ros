@@ -151,7 +151,7 @@ class AuthoringAction(object):
         if goal.goal.type != goal.goal.VIEW and goal.goal.type != goal.goal.CAMERA_VELOCITY:
             if self._camera_control:
                 self.camera_control(False)
-            self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "end_effector", rospy.Time(0)))
+            self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "panda_gripper", rospy.Time(0)))
             self.get_pose_rot(self._starting_pose.pose,goal.goal.pose.constraint_frame)
         else:
             self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "rotated_camera", rospy.Time(0)))
@@ -208,7 +208,7 @@ class AuthoringAction(object):
 
     def grasp(self):
         if self._waiting_for is None:
-            ee_frame = ('sim_' if self._current_action.sim.data else '') + 'end_effector'
+            ee_frame = ('sim_' if self._current_action.sim.data else '') + 'panda_gripper'
             t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
             h = HybridPose()
             h.constraint_frame = t.transform.rotation
@@ -263,7 +263,7 @@ class AuthoringAction(object):
         return False
 
     def insert(self):
-        ee_frame = ('sim_' if self._current_action.sim.data else '') + 'end_effector'
+        ee_frame = ('sim_' if self._current_action.sim.data else '') + 'panda_gripper'
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         linear,_ = self.get_diff_pose_trans(self._current_action.pose.pose,t)
 
@@ -340,7 +340,7 @@ class AuthoringAction(object):
         goal.sel_vector = [1,1,0,0,0,0]
         goal.constraint_frame.w=1
 
-        ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+        ee_frame = ('sim_' if action.sim.data else '') + 'panda_gripper'
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
         
@@ -367,7 +367,7 @@ class AuthoringAction(object):
         goal.sel_vector = [0,0,0,0,0,0]
         goal.constraint_frame.w=1
 
-        ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+        ee_frame = ('sim_' if action.sim.data else '') + 'panda_gripper'
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
         
@@ -392,7 +392,7 @@ class AuthoringAction(object):
         if self._camera_control:
             ee_frame = "rotated_camera"
         else:
-            ee_frame = ('sim_' if action.sim.data else '') + 'end_effector'
+            ee_frame = ('sim_' if action.sim.data else '') + 'panda_gripper'
 
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         self.get_trans_rot(t.transform,goal.constraint_frame)

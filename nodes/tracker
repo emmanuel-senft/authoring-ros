@@ -173,7 +173,7 @@ class Tracker(object):
 
     def get_transform(self, poi):
         if self.get_name(poi) == self._grasped_object:
-            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_panda_gripper', rospy.Time(0))
             poi.pose.header.frame_id = REFERENCE_FRAME
             poi.pose.pose.position = self.get_pose_from_trans(t).position
             poi.age = 20
@@ -234,7 +234,7 @@ class Tracker(object):
     #def publish_meshes(self):
     #    for p in self._estimated_objects:
     #        if self.get_name(p) == self._grasped_object:
-    #            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_end_effector', rospy.Time(0))
+    #            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_panda_gripper', rospy.Time(0))
     #            p.pose.header.frame_id = REFERENCE_FRAME
     #            p.pose.pose = self.get_pose_from_trans(t)
     #            

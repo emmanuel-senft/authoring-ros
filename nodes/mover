@@ -136,7 +136,7 @@ class Mover(object):
         if self._pause:
             return
         if self._sim or (self._exec and self._virtual):
-            ee_frame = 'sim_end_effector'
+            ee_frame = 'sim_panda_gripper'
             (trans,rot) = self._tl.lookupTransform("panda_link0", ee_frame, rospy.Time(0))
             d_t = (msg.header.stamp - rospy.Time.now()).to_sec()
             pose = Pose()
@@ -173,7 +173,7 @@ class Mover(object):
             self._sim_vel_pub.publish(vel)
             return
         if self._exec and not self._r_ik:
-            ee_frame = 'end_effector'
+            ee_frame = 'panda_gripper'
             (trans,rot) = self._tl.lookupTransform("panda_link0", ee_frame, rospy.Time(0))
             d_t = (msg.header.stamp - rospy.Time.now()).to_sec()
             pose = Pose()
