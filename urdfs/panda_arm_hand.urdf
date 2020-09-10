@@ -243,11 +243,11 @@
     <mimic joint="panda_finger_joint1"/>
   </joint>
 
-  <link name="end_effector" />
-  <joint name="end_effector" type="fixed">
+  <link name="panda_gripper" />
+  <joint name="panda_gripper" type="fixed">
     <origin rpy="-0.000 0.000 -0.785" xyz="-0.000 -0.000 0.103" />
     <parent link="panda_link8"/>
-    <child link="end_effector"/>
+    <child link="panda_gripper"/>
     <axis xyz="0 0 0"/>
   </joint>
 
