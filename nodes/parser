@@ -60,11 +60,19 @@ class Parser(object):
             self._joint_sub = rospy.Subscriber("/simulator/joint_states", JointState, self.on_joints)
         else:
             self._joint_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_joints)
+        self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self._on_depth)
         
         self._joints = None
         self._camera_t = None
         self._freq = 1
         self._saved_view = []
+        self._depth = None
+        self._numpy_depth = None
+        self._new_depth = True
+    
+    def _on_depth(self,msg):
+        self._depth = msg
+        self._new_depth = True
 
     def on_joints(self, msg):
         self._joints = msg.position
@@ -117,12 +125,19 @@ class Parser(object):
     def get_name(self, poi):
         return poi.type.data + ":" + str(poi.id)
 
-    def get_pose_from_pixel(self,image,x,y):
-        d = image[y,x]
+    def get_pose_from_pixel(self,x,y):
+        if self._depth is None: 
+            return None
+        if self._new_depth:
+            self._numpy_depth = ros_numpy.numpify(self._depth)
+            self._new_depth = False
+        d = self._numpy_depth[y,x]
         if d == 0.0:
             print("bad depth")
             self._gui_pub.publish(String("bad_depth"))
             return None
+        else: 
+            self._gui_pub.publish(String("good_depth"))
         point = self.get_xyz_from_pixel(x,y,d)
         p = PoseStamped()
         p.header.frame_id = CAMERA_FRAME
@@ -131,9 +146,9 @@ class Parser(object):
         p.pose.orientation.w = 1
         return p
 
-    def get_rotated_point(self, image, coord):
+    def get_rotated_point(self, coord):
         coord = coord.split(',')
-        p = self.get_pose_from_pixel(image,int(coord[0]),int(coord[1]))
+        p = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
         if p == None:
             return None
         p = self._tfBuffer.transform(p,REFERENCE_FRAME)
@@ -278,6 +293,19 @@ class Parser(object):
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = self.get_action_from_name(action,cmd[0])
+            if cmd[0] == "test":
+                point = cmd[1]
+                coord = point.split(',')
+                p = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
+                if p is not None:
+                    t = TransformStamped()
+                    t.header = p.header
+                    t.header.stamp = rospy.Time.now()
+                    t.child_frame_id = "target"
+                    t.transform.translation = p.pose.position
+                    t.transform.rotation = p.pose.orientation
+                    self._br.sendTransform(t)
+                return
             if cmd[0] == "Go":
                 delta = cmd[1].split(',')
                 t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "panda_gripper", rospy.Time(0)) 
@@ -297,10 +325,9 @@ class Parser(object):
                 action.pose = pose
                 action.item = String(item)
             else:
-                image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image,timeout=1))
                 points = cmd[1]
                 coord = points.split(',')
-                start = self.get_pose_from_pixel(image,int(coord[0]),int(coord[1]))
+                start = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
                 if start == None:
                     return
                 start = self._tfBuffer.transform(start,REFERENCE_FRAME)
@@ -438,16 +465,18 @@ class Parser(object):
         actions = []
 
         list_actions.pop(0)
-        for action in list_actions:
-            cmd = action.split(":")
-            if len(cmd)>1 and cmd[1].find(",") != -1:
-                try:
-                    #Only used if necessary?
-                    image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image,timeout=1))
-                    break
-                except Exception as e:
-                    print(e)
-                    return
+        #for action in list_actions:
+        #    cmd = action.split(":")
+        #    if len(cmd)>1 and cmd[1].find(",") != -1:
+        #        try:
+        #            #Only used if necessary?
+        #            image = ros_numpy.numpify(rospy.wait_for_message("depth_to_rgb/image_raw", Image,timeout=1))
+        #            break
+        #        except Exception as e:
+        #            print(e)
+        #            return
+        if self._depth is None:
+            return
         moved = {}
         for action in list_actions:
             cmd = action.split(":")
@@ -482,8 +511,8 @@ class Parser(object):
                 if name == 'Move':
                     action.type = action.MOVE_UNKNOWN
                     points = cmd[1].split('_')
-                    h_start = self.get_rotated_point(image, points[0])
-                    h_end = self.get_rotated_point(image, points[1])
+                    h_start = self.get_rotated_point(points[0])
+                    h_end = self.get_rotated_point(points[1])
                     if h_start == None or h_end == None:
                         return
                     action.pose = h_start
@@ -501,14 +530,14 @@ class Parser(object):
                     continue
                 elif name == "Wipe":
                     coords = cmd[1].split('_')
-                    h_grasp = self.get_rotated_point(image, coords[0])
+                    h_grasp = self.get_rotated_point(coords[0])
                     if h_grasp == None:
                         return 
                     action.poses.poses.append(h_grasp)
                     action.pose = h_grasp
                     for coord in coords[1:]:
                         coord = coord.split(',')
-                        pose = self.get_pose_from_pixel(image,int(coord[0]),int(coord[1]))
+                        pose = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
                         if pose == None:
                             return 
                         pose = self.get_hybrid_pose(self._tfBuffer.transform(pose,REFERENCE_FRAME))
