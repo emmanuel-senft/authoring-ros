@@ -70,14 +70,14 @@ class Poi(object):
                 if self._virtual and ((i==0 or i ==5) and (j==0 or j == 4)) or ((i == 2) and (j == 1 or j==3)) or (i==4 and j==2):
                     poi = copy.deepcopy(poi_init)
                     poi.age = 4
-                    poi.pose.pose.position.x+=off_x+.036*i+.001*j
-                    poi.pose.pose.position.y+=off_y+.041*j
+                    poi.pose.pose.position.x+=off_x+.036*i
+                    poi.pose.pose.position.y+=off_y+.04*j
                     poi.pose.pose.position.z+=off_z+.013
                     poi.id = screw_n
                     screw_n += 1
                     self._simulated_objects.poi_array.append(poi)
                 poi = copy.deepcopy(poi_init)
-                poi.pose.pose.position.x+=off_x+.036*i+.001*j
+                poi.pose.pose.position.x+=off_x+.036*i
                 poi.pose.pose.position.y+=off_y+.04*j
                 poi.pose.pose.position.z+=off_z
                 poi.id = hole_n
