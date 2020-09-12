@@ -59,21 +59,24 @@ class Simulator(object):
         self._virtual = rospy.get_param('~only_virtual')
         self._cam_control = False
 
-    #Serious scaling issue...
     def on_pose(self, msg):
         goal = msg.pose
         ee_frame = "sim_panda_gripper"
         if self._cam_control:
             ee_frame = "rotated_camera"
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+        q = msg.constraint_frame
+        self.get_trans_rot(t.transform,q)
+
         if msg.sel_vector[0] == 0:
-            goal.position.x = t.transform.translation.x
+            goal.position.x = t.transform.translation.x + .001 * msg.wrench.force.x
         if msg.sel_vector[1] == 0:
-            goal.position.y = t.transform.translation.y
+            goal.position.y = t.transform.translation.y + .001 * msg.wrench.force.y
         if msg.sel_vector[2] == 0:
-            goal.position.z = t.transform.translation.z + .01 * msg.wrench.force.z/np.fabs(msg.wrench.force.z)#/self._freq
+            goal.position.z = t.transform.translation.z + .001 * msg.wrench.force.z
         
         linear,angular = self.get_diff_pose_trans(goal,t)
+        linear,angular = self.get_lin_ang_rot(linear,angular,q) 
         vel = Twist()
         vel.linear.x =  linear[0]
         vel.linear.y =  linear[1]
@@ -181,6 +184,33 @@ class Simulator(object):
         
     def signal_handler(self, signal, frame):
         sys.exit(0)
+
+##################### Helpers ##########################3####
+
+    def get_lin_ang_rot(self,linear,angular,q):
+        rot = PyKDL.Rotation.Quaternion(q.x,q.y,q.z,q.w)
+        v = PyKDL.Vector(linear[0],linear[1],linear[2])
+        orientation = PyKDL.Rotation.RPY(angular[0],angular[1],angular[2])
+        linear = rot*v
+        angular = (rot*orientation).GetRPY()
+        return (linear,angular)
+        
+    def get_trans_rot(self, t, q):
+        p = t.translation
+        o = t.rotation
+        
+        rot = PyKDL.Rotation.Quaternion(q.x,q.y,q.z,q.w)
+        v = PyKDL.Vector(p.x,p.y,p.z)
+        orientation = PyKDL.Rotation.Quaternion(o.x,o.y,o.z,o.w)
+        v_rot = rot.Inverse()*v
+        q_rot = (rot.Inverse()*orientation).GetQuaternion()
+        t.translation.x = v_rot[0]
+        t.translation.y = v_rot[1]
+        t.translation.z = v_rot[2]
+        t.rotation.x = q_rot[0]
+        t.rotation.y = q_rot[1]
+        t.rotation.z = q_rot[2]
+        t.rotation.w = q_rot[3]
 
     def get_diff_pose_trans(self,pose, t):
         trans = t.transform.translation
