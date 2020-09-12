@@ -108,8 +108,12 @@ class Parser(object):
                 done = True
             except:
                 pass
-        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'panda_gripper', rospy.Time(0)).transform.translation
-        self._gui_pub.publish("panda_pose;"+str(t.x)+","+str(t.y)+","+str(t.z))
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'panda_gripper', rospy.Time(0)).transform
+        p = t.translation
+        q = t.rotation
+        e = tf.transformations.euler_from_quaternion([q.x,q.y,q.z,q.w])
+        e = [v*180/np.pi for v in e]
+        self._gui_pub.publish("panda_pose;"+str(round(p.x,3))+","+str(round(p.y,3))+","+str(round(p.z,3))+","+str(round(e[0],1))+","+str(round(e[1],1))+","+str(round(e[2],1)))
 
     def get_vect(self, v):
         toreturn = []
@@ -287,6 +291,30 @@ class Parser(object):
                 cmd.core_action.append(action)
                 self._command_pub.publish(cmd)
                 return
+                
+        if command_type == 'panda_goal':
+            pose = [float(v) for v in list_actions[1].split(",")]
+            r = [p*np.pi/180. for p in pose[3:]]
+            print(r)
+            rot = PyKDL.Rotation.RPY(r[0],r[1],r[2])
+            q = rot.GetQuaternion()
+            action = Action()
+            action.pose.header.frame_id = REFERENCE_FRAME
+            action.pose.pose.position.x = pose[0]
+            action.pose.pose.position.y = pose[1]
+            action.pose.pose.position.z = pose[2]
+            action.pose.pose.orientation.x = q[0]
+            action.pose.pose.orientation.y = q[1]
+            action.pose.pose.orientation.z = q[2]
+            action.pose.pose.orientation.w = q[3]
+            action.pose.sel_vector = [1,1,1,1,1,1]
+            action.pose.constraint_frame.w = 1
+            action.type = action.MOVE
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
 
         if command_type == 'direct': 
             cmd = list_actions[1].split(":")
