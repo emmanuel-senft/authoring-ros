@@ -255,7 +255,7 @@ class AuthoringAction(object):
             return True
         if not self._angle_move:
             self._angle_move = True
-            max_vel = .3
+            max_vel = .5
             d_t = np.fabs(max_diff)/max_vel
 
             pose = JointPose()
