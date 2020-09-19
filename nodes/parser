@@ -314,6 +314,42 @@ class Parser(object):
             self._command_pub.publish(cmd)
             return
 
+        if command_type == 'center':
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'rotated_camera', rospy.Time(0)).transform
+            p = t.translation
+            q = t.rotation
+            e = tf.transformations.euler_from_quaternion([q.x,q.y,q.z,q.w])
+            r = [e[0],e[1],e[2]]
+
+            dimensions = list_actions[1].split(",")
+            if "x" in dimensions:
+                r[0] = 0
+            if "y" in dimensions:
+                r[1] = 0
+            if "z" in dimensions:
+                r[2] = 0
+            
+
+            rot = PyKDL.Rotation.RPY(r[0],r[1],r[2])
+            q = rot.GetQuaternion()
+            action = Action()
+            action.pose.header.frame_id = REFERENCE_FRAME
+            action.pose.pose.position.x = p.x
+            action.pose.pose.position.y = p.y
+            action.pose.pose.position.z = p.z
+            action.pose.pose.orientation.x = q[0]
+            action.pose.pose.orientation.y = q[1]
+            action.pose.pose.orientation.z = q[2]
+            action.pose.pose.orientation.w = q[3]
+            action.pose.sel_vector = [1,1,1,1,1,1]
+            action.pose.constraint_frame.w = 1
+            action.type = action.VIEW
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
+
         if command_type == 'direct': 
             cmd = list_actions[1].split(":")
             action = Action()
