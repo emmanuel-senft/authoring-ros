@@ -135,6 +135,7 @@ class Planner(object):
             grasp = copy.deepcopy(a)
             grasp.type = grasp.GRASP
             pull = copy.deepcopy(up)
+            up.pose.pose.position.z += 0.05
             pull.pose.sel_vector = [0,0,0,1,1,1]
             pull.pose.wrench.force.z = 10
             release = copy.deepcopy(grasp)
@@ -183,7 +184,7 @@ class Planner(object):
             a1.poses.poses.append(action.poses.poses[0])
             self.add_subaction(a1,sim,plan,sub_action=True)
             a2 = Action(sim=Bool(sim))
-            a2.type = a2.PLACE
+            a2.type = a2.DROP
             a2.item = a1.item
             a2.poses.header = action.poses.header
             a2.poses.poses.append(action.poses.poses[1])
@@ -296,23 +297,28 @@ class Planner(object):
             pull.pose.wrench.force.z = 20 
             plan.append(pull)
             
-        if action.type == action.PLACE:
+        if action.type == action.PLACE or action.type == action.DROP:
             #print("place")
             bias = copy.deepcopy(action)
             bias.type = bias.BIAS_FORCES
+
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
             move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.05
-            move_to.type = move_to.MOVE_FORCE
+            move_above.pose.pose.position.z+=.1
+            if action.type == action.PLACE:
+                move_to.type = move_to.MOVE_FORCE
+            else:
+                move_to.pose.pose.position.z+=.01
             move_to.pose.pose.position.z+=.01
             move_safe = copy.deepcopy(move_above)
             release = Action(sim=Bool(sim))
             release.finished.data = False
             release.type = release.RELEASE
             release.item = action.item
+
             plan.append(move_above)
             plan.append(bias)
             plan.append(move_to)
@@ -322,13 +328,14 @@ class Planner(object):
         if action.type == action.MOVE_TO_CONTACT:
             bias = copy.deepcopy(action)
             bias.type = bias.BIAS_FORCES
+
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
             move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
             move_to.type = move_to.MOVE_FORCE
-            move_above.pose.pose.position.z+=.05
+            move_above.pose.pose.position.z+=.1
             move_to.pose.pose.position.z -= .003
             plan.append(move_above)
             plan.append(bias)
@@ -457,6 +464,9 @@ class Planner(object):
 
             plus = copy.deepcopy(move_to)
             plus.pose.pose.orientation = q_plus
+            plus.pose.pose.position.z += .002
+            #plus.type = plus.MOVE_FORCE
+            #plus.pose.wrench.force.z = -5
             minus = copy.deepcopy(move_to)
             minus.pose.pose.orientation = q_minus
             minus.pose.pose.position.z+=.002
@@ -619,6 +629,8 @@ class Planner(object):
             return "Bias"
         if action.type == action.PULL:
             return "Pull"
+        if action.type == a.DROP:
+            return "Drop"
         return ""
 
     def cancel_motion(self):
