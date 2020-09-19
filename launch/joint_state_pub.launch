@@ -1,8 +1,11 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="only_virtual" default="false"/>
    
     <!-- startup rviz -->
-    <node pkg="authoring" type="rviz_manager" name="rviz_manager"/>
+    <node pkg="authoring" type="rviz_manager" name="rviz_manager">
+        <param name="only_virtual" value="$(arg only_virtual)" />
+    </node>
 
     <!--<node pkg="authoring" type="rviz" name="rviz" args="-d $(find authoring)/rviz/joint_viewer.rviz" />-->
 

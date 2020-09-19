@@ -69,7 +69,9 @@
         <node pkg="authoring" type="pc_publish" name="pc_publish"/>
     </group>
 
-    <include file="$(find authoring)/launch/joint_state_pub.launch"/>  
+    <include file="$(find authoring)/launch/joint_state_pub.launch">  
+        <arg name="only_virtual" value="$(arg only_virtual)" />
+    </include>
 
     <group if="$(arg with_utils)">
         <include file="$(find authoring)/launch/utils.launch">  

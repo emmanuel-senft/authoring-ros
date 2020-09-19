@@ -45,12 +45,17 @@ class MyViz( QWidget ):
         ## which is the central class of RViz.
         self.frame.initialize()
 
+        self._virtual = rospy.get_param('~only_virtual')
+
         ## The reader reads config file data into the config object.
         ## VisualizationFrame reads its data from the config object.
         reader = rviz.YamlConfigReader()
         config = rviz.Config()
         rospack = rospkg.RosPack()
-        path = rospack.get_path('authoring')+'/rviz/joint_viewer.rviz'
+        if self._virtual:
+            path = rospack.get_path('authoring')+'/rviz/simu.rviz'
+        else:
+            path = rospack.get_path('authoring')+'/rviz/authoring.rviz'
 
         reader.readFile( config, path)
         self.frame.load( config )
