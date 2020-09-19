@@ -33,6 +33,8 @@ class AuthoringAction(object):
         self._starting_pose = None
         self._waiting_for = None
         self._wrench = Wrench()
+        self._biased_wrench = Wrench()
+        self._bias = Wrench()
         self._search_theta = 0
         self._searching = False
         self._push_force = -10
@@ -80,8 +82,6 @@ class AuthoringAction(object):
         # Lambda for event
         self._on_success = None
 
-        self._bias = Wrench()
-
         # Pause
         self._pause = False
         self._start_pause_time = None
@@ -119,6 +119,12 @@ class AuthoringAction(object):
 
     def on_wrench(self,msg):
         self._wrench = msg
+        self._biased_wrench.force.x = self._wrench.force.x - self._bias.force.x
+        self._biased_wrench.force.y = self._wrench.force.y - self._bias.force.y
+        self._biased_wrench.force.z = self._wrench.force.z - self._bias.force.z
+        self._biased_wrench.torque.x = self._wrench.torque.x - self._bias.torque.x
+        self._biased_wrench.torque.y = self._wrench.torque.y - self._bias.torque.y
+        self._biased_wrench.torque.z = self._wrench.torque.z - self._bias.torque.z
 
     def bias_forces(self):
         self._bias = copy.deepcopy(self._wrench)
@@ -310,7 +316,7 @@ class AuthoringAction(object):
         print("Force")
         print(self._wrench.force.z)
         print(force_contact)
-        if self._wrench.force.z < force_contact:
+        if self._biased_wrench.force.z < force_contact:
             if self._z_plane is None:
                 self._z_plane = t.transform.translation.z
             if self._search_theta == 0:
@@ -319,7 +325,7 @@ class AuthoringAction(object):
                 self._search_theta+=chord/away
             print("High force")
         else:
-            if self._wrench.force.z < force_hole:
+            if self._biased_wrench.force.z < force_hole:
                 print("Medium force")
             else: 
                 print("Low force")
@@ -351,7 +357,7 @@ class AuthoringAction(object):
             return True
         linear[2] = 0
         force_threshold = self._push_force*.7
-        if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold) and self._wrench.force.z < force_threshold:
+        if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold) and self._biased_wrench.force.z < force_threshold:
             return True
         progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
         goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)

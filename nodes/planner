@@ -115,7 +115,12 @@ class Planner(object):
         action.sim = Bool(sim)
         action.finished = Bool(False)
 
-        if action.type == action.MOVE or action.type == action.GRASP or action.type == action.RELEASE:
+        if action.type == action.MOVE or action.type == action.RELEASE:
+            plan.append(action)
+        if action.type == action.GRASP:
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
+            plan.append(bias)
             plan.append(action)
 
         if action.type == action.PULL:
@@ -226,6 +231,7 @@ class Planner(object):
             release.item = String(action.item.data.split("_")[1])
 
             plan.append(move_above)
+            plan.append(bias)
             plan.append(move_close)
             plan.append(move_to)
             plan.append(release)
@@ -292,6 +298,8 @@ class Planner(object):
             
         if action.type == action.PLACE:
             #print("place")
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
@@ -306,11 +314,14 @@ class Planner(object):
             release.type = release.RELEASE
             release.item = action.item
             plan.append(move_above)
+            plan.append(bias)
             plan.append(move_to)
             plan.append(release)
             plan.append(move_safe)
 
         if action.type == action.MOVE_TO_CONTACT:
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
             move_above = Action(sim=Bool(sim))
             move_above.finished.data = False
             move_above.type = move_above.MOVE
@@ -320,6 +331,7 @@ class Planner(object):
             move_above.pose.pose.position.z+=.05
             move_to.pose.pose.position.z -= .003
             plan.append(move_above)
+            plan.append(bias)
             plan.append(move_to)
 
         if action.type == action.INSPECT:
@@ -481,6 +493,9 @@ class Planner(object):
             pick.poses.poses.append(grasp)
             self.add_subaction(pick,sim,plan,sub_action=True)
 
+            bias = copy.deepcopy(action)
+            bias.type = bias.BIAS_FORCES
+
             move_above = Action(sim=Bool(sim))
             move_above.pose.constraint_frame.w = 1
             move_above.type = move_above.MOVE
@@ -488,6 +503,7 @@ class Planner(object):
             move_above.pose = copy.deepcopy(p0)
             move_above.pose.pose.position.z+=.10
             plan.append(move_above)
+            plan.append(bias)
 
             #distance of the left and right sides of the 'rectangle'
             d_l = self.get_distance(p0.pose,p3.pose)
@@ -539,6 +555,7 @@ class Planner(object):
             release.type = release.RELEASE
             release.item = action.item
             plan.append(move_above)
+            plan.append(bias)
             plan.append(move_to)
             plan.append(release)
             plan.append(move_safe)
