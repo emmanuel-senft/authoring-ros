@@ -2,6 +2,7 @@
 <launch>
     <arg name="use_relaxed_ik" default="false"/>
     <arg name="only_virtual" default="true"/>
+    <arg name="record" default="true"/>
     <node pkg="authoring" type="planner" name="planner" output="screen"/>
     <node pkg="authoring" type="tracker" name="tracker" output="screen"/> 
     <node pkg="authoring" type="poi" name="poi">
@@ -20,6 +21,10 @@
     <node pkg="authoring" type="parser" name="parser" output="screen">
         <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
     </node>
+
+    <group if="$(arg record)">
+        <node pkg="authoring" type="recorder" name="recorder"/>        
+    </group>
 
     <group if="$(arg use_relaxed_ik)">
         <node pkg="relaxed_ik" type="relaxed_ik_rust.py" name="relaxed_ik_node"/>
