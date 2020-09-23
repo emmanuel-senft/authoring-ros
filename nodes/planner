@@ -167,7 +167,7 @@ class Planner(object):
             push.pose.pose.position.z -= .05
             release = copy.deepcopy(grasp)
             release.type = release.RELEASE
-            safe = copy.deepcopy(a)
+            safe = copy.deepcopy(up)
             plan.append(up)
             plan.append(a)
             plan.append(bias)
@@ -402,7 +402,7 @@ class Planner(object):
             move_above.type = move_above.MOVE
             move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.1
+            move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z+=.005
 
             grasp = Action(sim=Bool(sim))
@@ -451,7 +451,7 @@ class Planner(object):
             move_above.type = move_above.MOVE
             move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.1
+            move_above.pose.pose.position.z+=.15
             move_to.pose.pose.position.z-=.00
 
             grasp = Action(sim=Bool(sim))
@@ -629,8 +629,10 @@ class Planner(object):
             return "Bias"
         if action.type == action.PULL:
             return "Pull"
-        if action.type == a.DROP:
+        if action.type == action.DROP:
             return "Drop"
+        if action.type == action.RESET:
+            return "Reset"
         return ""
 
     def cancel_motion(self):
@@ -714,8 +716,7 @@ class Planner(object):
                 break
             self._current_action_progress.append(action)
 
-        if result:
-            self._event_pub.publish(String("motion_finished"))
+        self._event_pub.publish(String("motion_finished"))
 
     def run(self):
         rospy.spin()

@@ -72,14 +72,14 @@ class Poi(object):
                     poi.age = 4
                     poi.pose.pose.position.x+=off_x+.036*i
                     poi.pose.pose.position.y+=off_y+.04*j
-                    poi.pose.pose.position.z+=off_z+.013
+                    poi.pose.pose.position.z+=off_z+.0135
                     poi.id = screw_n
                     screw_n += 1
                     self._simulated_objects.poi_array.append(poi)
                 poi = copy.deepcopy(poi_init)
                 poi.pose.pose.position.x+=off_x+.036*i
                 poi.pose.pose.position.y+=off_y+.04*j
-                poi.pose.pose.position.z+=off_z
+                poi.pose.pose.position.z+=off_z+.0005*i+.002
                 poi.id = hole_n
                 hole_n += 1
                 poi.type = String("hole")
@@ -88,7 +88,7 @@ class Poi(object):
         first_drawer = POI()
         first_drawer.type = String("drawer")
         first_drawer.pose.pose.position.x = .28
-        first_drawer.pose.pose.position.y = .4
+        first_drawer.pose.pose.position.y = .47
         first_drawer.pose.pose.position.z = .10+.04
         first_drawer.pose.header.frame_id = REFERENCE_FRAME
         q = PyKDL.Rotation.RPY(np.pi/2,0,0).GetQuaternion()

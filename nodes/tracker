@@ -202,6 +202,7 @@ class Tracker(object):
         if d < .04:
             t.transform.translation.x = self._init_pois[index].pose.pose.position.x
             t.transform.translation.y = self._init_pois[index].pose.pose.position.y
+            t.transform.translation.z = max(t.transform.translation.z,self._init_pois[index].pose.pose.position.z+.01)
         return t   
 
     def publish_pois(self):

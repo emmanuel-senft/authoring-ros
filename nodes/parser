@@ -355,13 +355,15 @@ class Parser(object):
             action = Action()
             action.poses.header.frame_id = REFERENCE_FRAME
             action.type = self.get_action_from_name(action,cmd[0])
+
             if cmd[0] == "test":
                 point = cmd[1]
                 coord = point.split(',')
                 p = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))             
                 if p is not None:
                     p = self._tfBuffer.transform(p,REFERENCE_FRAME)
-                    if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y > 0.28:
+                    print(p.pose.position)
+                    if p.pose.position.x>.67 or p.pose.position.y > 0.30:
                         self._gui_pub.publish(String("out_of_reach"))
                         return      
                     self._gui_pub.publish(String("good_move"))
@@ -394,32 +396,35 @@ class Parser(object):
             else:
                 points = cmd[1]
                 coord = points.split(',')
-                start = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
-                if start == None:
+                target = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
+                if target == None:
                     return
-                start = self._tfBuffer.transform(start,REFERENCE_FRAME)
+                target = self._tfBuffer.transform(target,REFERENCE_FRAME)
+                target.pose.position.z = max(target.pose.position.z,0.01) 
+                #print(target.pose.position.z)
                 q = PyKDL.Rotation.RPY(0,0,float(coord[2])/180*np.pi).GetQuaternion()
-                start.pose.orientation.x=q[0]
-                start.pose.orientation.y=q[1]
-                start.pose.orientation.z=q[2]
-                start.pose.orientation.w=q[3]
+                target.pose.orientation.x=q[0]
+                target.pose.orientation.y=q[1]
+                target.pose.orientation.z=q[2]
+                target.pose.orientation.w=q[3]
                 h = HybridPose()
-                h.header = start.header
-                h.pose = start.pose
+                h.header = target.header
+                h.pose = target.pose
                 h.sel_vector = [1,1,1,1,1,1]
                 h.constraint_frame.w = 1
                 action.pose = h
                 action.poses.poses.append(h)
-            if action.pose.pose.position.x>.67 or action.pose.pose.position.z < 0 or action.pose.pose.position.y>.28:
-                self._gui_pub.publish(String("out_of_reach"))
-                return        
+            
+            #if action.pose.pose.position.x>.67 or action.pose.pose.position.z < -0.01 or action.pose.pose.position.y>.28:
+            #    self._gui_pub.publish(String("out_of_reach"))
+            #    return        
 
             self._gui_pub.publish(String("good_move"))
 
             cmd = Command()
             cmd.type = cmd.EXEC
             cmd.core_action.append(action)
-            print(action)
+            #print(action)
             self._command_pub.publish(cmd)
             return
 
@@ -594,7 +599,7 @@ class Parser(object):
                     action.item = String(cmd[1])
                     
                     for p in action.poses.poses:
-                        if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.28:
+                        if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.30:
                             self._gui_pub.publish(String("out_of_reach"))
                             return    
 
@@ -630,10 +635,10 @@ class Parser(object):
                 else:
                     return
 
-            for p in action.poses.poses:
-                if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.28:
-                    self._gui_pub.publish(String("out_of_reach"))
-                    return        
+            #for p in action.poses.poses:
+            #    if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.28:
+            #        self._gui_pub.publish(String("out_of_reach"))
+            #        return        
 
             self._gui_pub.publish(String("good_move"))
 
