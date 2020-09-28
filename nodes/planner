@@ -117,7 +117,7 @@ class Planner(object):
 
         if action.type == action.MOVE or action.type == action.RELEASE:
             plan.append(action)
-        if action.type == action.GRASP:
+        if action.type == action.GRASP or action.type == action.MOVE_FORCE:
             bias = copy.deepcopy(action)
             bias.type = bias.BIAS_FORCES
             plan.append(bias)
@@ -275,8 +275,8 @@ class Planner(object):
             move_to = copy.deepcopy(move_above)
             move_close = copy.deepcopy(move_above)
             move_to.type = move_to.MOVE_FORCE
-            move_above.pose.pose.position.z+=.05
-            move_close.pose.pose.position.z+=.01
+            move_above.pose.pose.position.z+=.08
+            move_close.pose.pose.position.z+=.05
             move_to.pose.pose.position.z -= .003
             grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
@@ -288,13 +288,13 @@ class Planner(object):
 
             plan.append(move_above)
             plan.append(bias)
-            plan.append(move_close)
+            #plan.append(move_close)
             plan.append(move_to)
             plan.append(grasp)
             #if sub_action:
             pull = copy.deepcopy(move_above)
-            pull.pose.sel_vector=[0,0,0,1,1,1]
-            pull.pose.wrench.force.z = 20 
+            pull.pose.sel_vector=[0,0,1,1,1,1]
+            #pull.pose.wrench.force.z = 20 
             plan.append(pull)
             
         if action.type == action.PLACE or action.type == action.DROP:
@@ -307,7 +307,7 @@ class Planner(object):
             move_above.type = move_above.MOVE
             move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.1
+            move_above.pose.pose.position.z+=.08
             if action.type == action.PLACE:
                 move_to.type = move_to.MOVE_FORCE
             else:
@@ -685,6 +685,7 @@ class Planner(object):
             self._plan = new_plan
 
         if msg.type != msg.VIZ or self._plan_following_thread.is_alive():
+            print("canceling")
             self.cancel_motion()
         if msg.type != msg.VIZ:
             self._plan_following_thread = threading.Thread(target=self.run_plan, args=(starting,))
@@ -699,11 +700,14 @@ class Planner(object):
         h.sel_vector = [1,1,1,1,1,1]
         h.constraint_frame.w = 1
         return h
+
     def run_plan(self,starting):
         print("running plan")
         result = False
 
         for action in self._plan[starting:]:
+            print("At action "+self.get_type(action))
+            print(action)
             if action.finished.data:
                 self._event_pub.publish(String("action_finished;"+self.get_type(action)+":"+action.item.data))
                 continue
@@ -759,8 +763,8 @@ class Planner(object):
 
     def signal_handler(self, signal, frame):
         #publish empty path
-        if self._plan_following_thread is not None:
-            self._cl
+        #if self._plan_following_thread is not None:
+        #    self._plan_following_thread.join
         sys.exit(0)
 
 if __name__ == "__main__":

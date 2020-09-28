@@ -4,6 +4,7 @@ import signal
 import sys
 import math
 import tf
+import PyKDL
 import tf2_ros
 import PyKDL
 import copy
@@ -76,7 +77,12 @@ class Simulator(object):
             goal.position.z = t.transform.translation.z + .001 * msg.wrench.force.z
         
         linear,angular = self.get_diff_pose_trans(goal,t)
+        print("****")
+        print(q)
+        print(linear)
         linear,angular = self.get_lin_ang_rot(linear,angular,q) 
+        print(linear)
+
         vel = Twist()
         vel.linear.x =  linear[0]
         vel.linear.y =  linear[1]

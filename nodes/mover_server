@@ -34,7 +34,7 @@ class AuthoringAction(object):
         self._waiting_for = None
         self._wrench = Wrench()
         self._biased_wrench = Wrench()
-        self._bias = Wrench()
+        self._bias = None
         self._search_theta = 0
         self._searching = False
         self._push_force = -10
@@ -43,6 +43,7 @@ class AuthoringAction(object):
         self._found_hole = False
         self._z_plane = None
         self._current_joint = None
+        self._success = False
 
         self._virtual = rospy.get_param('~only_virtual')
         #TODO To fix
@@ -119,6 +120,8 @@ class AuthoringAction(object):
 
     def on_wrench(self,msg):
         self._wrench = msg
+        if self._bias is None:
+            self._bias = copy.deepcopy(self._wrench)
         self._biased_wrench.force.x = self._wrench.force.x - self._bias.force.x
         self._biased_wrench.force.y = self._wrench.force.y - self._bias.force.y
         self._biased_wrench.force.z = self._wrench.force.z - self._bias.force.z
@@ -140,6 +143,7 @@ class AuthoringAction(object):
         #    self._result.success = Bool(False)
         #    self._as.set_succeeded(self._result)
         #return
+        #print(goal)
         self._current_action = None
         self._angle_move = None
         self._waiting_for = None
@@ -150,6 +154,7 @@ class AuthoringAction(object):
         self._starting_time = rospy.Time.now()
         self._velocity_sent = False
         self._pause = False
+        self._success = True
         if goal.goal.type == goal.goal.BIAS_FORCES:
             self.bias_forces() 
             self.success()
@@ -403,7 +408,11 @@ class AuthoringAction(object):
         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
         self.get_trans_rot(t.transform,goal.constraint_frame)
         linear,angular = self.get_diff_pose_trans(goal.pose,t)
-
+        
+        #if goal.constraint_frame.w == 1 and goal.sel_vector[2] and self._biased_wrench.force.z < -10:
+        #    self._success = False
+        #    print("fail")
+        #    return True
         linear_threshold = .001
         angular_threshold = .01
         sel_vector = np.array([goal.sel_vector[0],goal.sel_vector[1],goal.sel_vector[2],goal.sel_vector[3],goal.sel_vector[4],goal.sel_vector[5]])
@@ -413,7 +422,10 @@ class AuthoringAction(object):
         # find if force are applied and ( in the wrong direction or close enough)
         apply_forces = ( sel_vector[:3] == 0) & (np.sign(forces[:3]) != 0 )
         useless_forces =  (np.sign(linear) != np.sign(forces[:3])) | ( np.abs(linear)<linear_threshold)  
-#
+#       
+        #print("--")
+        #print(np.sign(linear))
+        #print(useless_forces)
         ##In this case, make a control in position
         sel_vector[:3] = sel_vector[:3] | (useless_forces & apply_forces)
         #print(sel_vector)
@@ -470,6 +482,7 @@ class AuthoringAction(object):
             return True
 
     def success(self,val = True):
+        val = val and self._success
         if val and self._on_success is not None:
             self._on_success()
         self._on_success = None
@@ -482,6 +495,15 @@ class AuthoringAction(object):
         self._cart_vel_pub.publish(TwistStamped())
 
     def publish_pose(self, pose):
+        #if pose.constraint_frame.w == 1 and pose.pose.position.z < .07 and self._current_action.pose.pose.position.z < (pose.pose.position.z+.002) and pose.sel_vector[2] == 1:
+        #    print("limiting")
+        #    pose.sel_vector[2] = 0
+        #    print(pose.sel_vector)
+        #    pose.wrench.force.z = 10
+        #else:
+        #    print("not")
+        #    print(pose.pose.position.z)
+
         pose.wrench.force.x += self._bias.force.x
         pose.wrench.force.y += self._bias.force.y
         pose.wrench.force.z += self._bias.force.z
@@ -489,6 +511,7 @@ class AuthoringAction(object):
         pose.wrench.torque.x += self._bias.torque.x
         pose.wrench.torque.y += self._bias.torque.y
         pose.wrench.torque.z += self._bias.torque.z
+            
         if self._virtual or self._current_action.sim.data:
             self._sim_pose_pub.publish(pose)
         else:

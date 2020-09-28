@@ -5,6 +5,7 @@
     <arg name="use_static_cloud" default="false"/>
     <arg name="local_kinect" default="false"/>
     <arg name="only_virtual" default="false"/>
+    <arg name="with_rviz" default="false"/>
     <arg name="use_fake_kinect" default="$(arg only_virtual)"/>
 
     <group if="$(arg use_static_cloud)">
@@ -16,19 +17,13 @@
         <node pkg="authoring" type="pc_publish" name="pc_publish"/>
     </group>
 
-    <node pkg="authoring" type="simulator" name="simulator" output="screen">
-        <param name="use_relaxed_ik" type="bool" value="false" />
-        <param name="only_virtual" value="$(arg only_virtual)" />
-    </node>
-    
-    <node pkg="authoring" type="static_publisher" name="go_camera_static_publisher">
-        <param name="file_name" type="string" value="transforms.yaml" />
-        <param name="transform" type="string" value="go_camera_transform" />
-    </node>
-
     <node pkg="authoring" type="static_publisher" name="external_view_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />
         <param name="transform" type="string" value="external_view_transform" />
+    </node>
+    <node pkg="authoring" type="static_publisher" name="internal_camera_static_publisher">
+        <param name="file_name" type="string" value="transforms.yaml" />
+        <param name="transform" type="string" value="internal_camera_transform" />
     </node>
 
     <group if="$(arg only_virtual)">
@@ -36,8 +31,27 @@
             <param name="file_name" type="string" value="transforms.yaml" />
             <param name="transform" type="string" value="sim_robot_transform" />
         </node>
+
+        <node pkg="authoring" type="simulator" name="simulator" output="screen">
+            <param name="use_relaxed_ik" type="bool" value="false" />
+            <param name="only_virtual" value="$(arg only_virtual)" />
+        </node>
+
+    <include file="$(find authoring)/launch/virtual_camera.launch">  
+        </include>
+        
+        <!-- startup rviz -->
+        <node pkg="authoring" type="rviz_manager" name="rviz_manager">
+            <param name="only_virtual" value="$(arg only_virtual)" />
+        </node>
     </group>
 
+    <group if="$(arg with_rviz)">
+        <!-- startup rviz -->
+        <node pkg="authoring" type="rviz_manager" name="rviz_manager">
+            <param name="only_virtual" value="$(arg only_virtual)" />
+        </node>
+    </group>
     
     <group if="$(arg local_kinect)">
         <include file="$(find authoring)/launch/kinect.launch">
@@ -79,9 +93,6 @@
             <arg name="only_virtual" default="$(arg only_virtual)"/>
         </include>
     </group>
-
-    <include file="$(find authoring)/launch/virtual_camera.launch">  
-    </include>
 
     <node pkg="authoring" type="static_publisher" name="sim_ee_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />

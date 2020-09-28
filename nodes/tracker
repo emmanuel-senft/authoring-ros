@@ -114,7 +114,7 @@ class Tracker(object):
             for known_poi in self._objects:
                 if poi.type == known_poi.type:
                     poi.id+=1
-                    if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .02:
+                    if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .04:
                         self.update_poi(known_poi.pose.pose,poi.pose.pose)
                         if known_poi.age<252:
                             known_poi.age += 2
@@ -202,7 +202,7 @@ class Tracker(object):
         if d < .04:
             t.transform.translation.x = self._init_pois[index].pose.pose.position.x
             t.transform.translation.y = self._init_pois[index].pose.pose.position.y
-            t.transform.translation.z = max(t.transform.translation.z,self._init_pois[index].pose.pose.position.z+.01)
+            t.transform.translation.z = max(t.transform.translation.z,self._init_pois[index].pose.pose.position.z+.018)
         return t   
 
     def publish_pois(self):

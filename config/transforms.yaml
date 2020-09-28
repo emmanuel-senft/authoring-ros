@@ -4,6 +4,7 @@ external_view_transform: 1.1 0 0.75 0.5879378 0.5879378 -0.3928474 -0.3928474 pa
 internal_camera_transform: 0 0 0 0 0 0 1 camera_base internal_camera_base
 sim_robot_transform: 0 0 0 0 0 0 1 sim_panda_gripper panda_gripper
 static_cloud_transform: 0.422 -0.005 0.656 -0.702 0.713 -0.001 -0.000 panda_link0 static_camera_link
+static_cloud_transform_old: 0.420 -0.020 0.804 0.757 -0.653 -0.001 0.002 panda_link0 static_camera_link
 static_cloud_transform_old: 0.249 -0.029 0.838 0.726 -0.688 -0.011 0.006 panda_link0 static_camera_link
 fake_camera_transform: 0.063 -0.004 0.098 -0.707 0.707 0.002 -0.004 panda_gripper internal_rgb_camera_link
 go_camera_transform: -0.026 0.062 0.229 0.717 -0.697 -0.011 -0.006 camera1 go_camera

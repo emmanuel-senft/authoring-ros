@@ -79,7 +79,7 @@ class Poi(object):
                 poi = copy.deepcopy(poi_init)
                 poi.pose.pose.position.x+=off_x+.036*i
                 poi.pose.pose.position.y+=off_y+.04*j
-                poi.pose.pose.position.z+=off_z+.0005*i+.002
+                poi.pose.pose.position.z+=off_z+.0005*i
                 poi.id = hole_n
                 hole_n += 1
                 poi.type = String("hole")

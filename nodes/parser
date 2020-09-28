@@ -26,7 +26,7 @@ import PyKDL
 
 
 REFERENCE_FRAME='panda_link0'
-CAMERA_FRAME='camera1'
+CAMERA_FRAME='internal_rgb_camera_link'
 
 class Parser(object):
     def __init__(self):
@@ -39,8 +39,6 @@ class Parser(object):
 
         self._virtual = rospy.get_param('~only_virtual')
         self._camera_topic = "/rgb/" if not self._virtual else "/virtual_camera/"
-
-        print(self._camera_topic+"camera_info")
 
         self._model = image_geometry.PinholeCameraModel()
         self._model.fromCameraInfo(rospy.wait_for_message(self._camera_topic+"camera_info", CameraInfo))
@@ -216,7 +214,6 @@ class Parser(object):
         h.pose = p.pose
         h.sel_vector = [1,1,1,1,1,1]
         h.constraint_frame.w = 1
-        print(h)
         return h
 
     #from https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
@@ -257,6 +254,7 @@ class Parser(object):
 
     def on_command(self, message):
         list_actions = message.data.split(";")
+        #print(message)
         command_type = list_actions[0]
         if command_type == "pause":
             self._event_pub.publish("pause")
@@ -293,7 +291,6 @@ class Parser(object):
         if command_type == 'panda_goal':
             pose = [float(v) for v in list_actions[1].split(",")]
             r = [p*np.pi/180. for p in pose[3:]]
-            print(r)
             rot = PyKDL.Rotation.RPY(r[0],r[1],r[2])
             q = rot.GetQuaternion()
             action = Action()
@@ -308,6 +305,11 @@ class Parser(object):
             action.pose.sel_vector = [1,1,1,1,1,1]
             action.pose.constraint_frame.w = 1
             action.type = action.MOVE
+            
+            ee_t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'panda_gripper', rospy.Time(0)).transform
+            if action.pose.pose.position.z < .08 and ee_t.translation.z > action.pose.pose.position.z:
+                action.type = action.MOVE_FORCE
+            
             cmd = Command()
             cmd.type = cmd.EXEC
             cmd.core_action.append(action)
@@ -382,6 +384,11 @@ class Parser(object):
                 pose.pose.position.x += float(delta[0])/1000.
                 pose.pose.position.y += float(delta[1])/1000.
                 pose.pose.position.z += float(delta[2])/1000.
+
+                ee_t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'panda_gripper', rospy.Time(0)).transform
+                if pose.pose.position.z < .08 and ee_t.translation.z > pose.pose.position.z:
+                    action.type = action.MOVE_FORCE
+
                 action.poses.poses.append(pose)
                 action.pose = pose
             elif len(cmd) == 1:
@@ -592,6 +599,7 @@ class Parser(object):
                     h_start = self.get_rotated_point(points[0])
                     h_end = self.get_rotated_point(points[1])
                     if h_start == None or h_end == None:
+
                         return
                     action.pose = h_start
                     action.poses.poses.append(h_start)
@@ -657,8 +665,10 @@ class Parser(object):
             cmd.type = cmd.EDIT
         for action in actions:
             cmd.core_action.append(action)
+        ##print(cmd)
         if cmd.type != cmd.VIZ:
             self._command_pub.publish(cmd)
+
     def get_action_from_name(self, a, name):
         if name == 'Wipe':
             return a.WIPE
