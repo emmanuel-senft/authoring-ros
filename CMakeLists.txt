@@ -112,6 +112,7 @@ catkin_install_python(PROGRAMS
     nodes/folding_task
     nodes/rviz_manager
     nodes/recorder
+    nodes/socket
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(TARGETS pandaJacob
