@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+
+import rospy
+import rosbag
+from std_msgs.msg import String
+import signal
+import sys
+import datetime
+import cv2
+import threading
+
+class Recorder(object):
+    def __init__(self):
+        self._command_sub = rospy.Subscriber("/gui/command", String, self.on_command)
+        self._event_sub = rospy.Subscriber("/event", String, self.on_event)
+        
+        self._bag = None
+        self._capture = None
+        self._fourcc = cv2.VideoWriter_fourcc(*'H264')
+        self._videoWriter = None
+        self._recording = False
+
+
+    def on_command(self, msg):
+        if self._bag is None:
+            return
+        else: 
+            try:
+                self._bag.write('commands',msg)
+            except expression as identifier:
+                pass
+    
+    def on_event(self, msg):
+        s = msg.data
+        if s.startswith("starting_"):
+            name = '/home/senft/Documents/data/bags/'+self.get_time(rospy.Time.now().to_time())+s.split("_")[1]
+            self._bag = rosbag.Bag(name+'.bag', 'w')
+            #self._capture = cv2.VideoCapture(3)
+            #self._videoWriter = cv2.VideoWriter(name+'.mp4', self._fourcc, 30.0, (640,480))
+            #self._recording = True
+            threading.Thread(target=self.run).start()
+            return
+
+        if s == "closing" and self._bag is not None:
+            print("closing")
+            self._bag.close()
+            self._bag = None
+            self._recording = False
+            return
+        if self._bag is not None:
+            try:
+                self._bag.write('event',msg)
+            except expression as identifier:
+                pass
+
+    def get_time(self,t):
+        d = datetime.datetime.fromtimestamp(t)
+        s = str(d)
+        s = s.split(".")[0]
+        s = s.replace(":","-")
+        return s
+
+    def run(self):
+        rospy.spin()
+
+    def record_camera(self):
+        while(self._recording):
+            ret, frame = self._capture.read()
+            if ret:
+                self._videoWriter.write(frame)
+
+    def signal_handler(self, signal, frame):
+        if self._bag is not None:
+            self._bag.close()
+        sys.exit(0)
+
+if __name__ == "__main__":
+    rospy.init_node("recorder")
+    recorder = Recorder()
+    signal.signal(signal.SIGINT, recorder.signal_handler)
+    recorder.run()

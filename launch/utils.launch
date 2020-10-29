@@ -2,7 +2,7 @@
 <launch>
     <arg name="use_relaxed_ik" default="false"/>
     <arg name="only_virtual" default="true"/>
-    <arg name="record" default="true"/>
+    <arg name="record" default="false"/>
     <node pkg="authoring" type="planner" name="planner" output="screen"/>
     <node pkg="authoring" type="tracker" name="tracker" output="screen"/> 
     <node pkg="authoring" type="poi" name="poi">
