@@ -254,7 +254,6 @@ class Parser(object):
 
     def on_command(self, message):
         list_actions = message.data.split(";")
-        #print(message)
         command_type = list_actions[0]
         if command_type == "pause":
             self._event_pub.publish("pause")

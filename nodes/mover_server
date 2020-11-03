@@ -34,7 +34,7 @@ class AuthoringAction(object):
         self._waiting_for = None
         self._wrench = Wrench()
         self._biased_wrench = Wrench()
-        self._bias = None
+        self._bias = Wrench()
         self._search_theta = 0
         self._searching = False
         self._push_force = -10
@@ -120,7 +120,7 @@ class AuthoringAction(object):
 
     def on_wrench(self,msg):
         self._wrench = msg
-        if self._bias is None:
+        if self._bias == Wrench():
             self._bias = copy.deepcopy(self._wrench)
         self._biased_wrench.force.x = self._wrench.force.x - self._bias.force.x
         self._biased_wrench.force.y = self._wrench.force.y - self._bias.force.y
