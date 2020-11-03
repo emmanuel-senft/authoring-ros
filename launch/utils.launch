@@ -13,9 +13,6 @@
         <param name="only_virtual" type="bool" value="$(arg only_virtual)" />
     </node>
 
-    <node pkg="authoring" type="socket" name="socket" output="screen">
-    </node>
-
     <node pkg="authoring" type="static_publisher" name="rotated_camera_static_publisher">
         <param name="file_name" type="string" value="transforms.yaml" />
         <param name="transform" type="string" value="rotated_camera" />

@@ -42,8 +42,8 @@ class Simulator(object):
         self._starting_joint = self._current_joint
         self._starting_time = rospy.Time.now()
         self._pre_sim_joints = copy.deepcopy(self._current_joint)
-        self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
-        self._freq = 1000
+        self._current_velocity = [0,0,0,0,0,0,0]
+        self._freq = 100
         self._vel_sub = rospy.Subscriber("/jacob/joint_vel", JointPose, self.on_vel)
         self._vel_sub2 = rospy.Subscriber("/simulator/joint_pose", JointPose, self.on_joint)
         self._command_sub = rospy.Subscriber("/simulator/commands", String, self.on_command, queue_size = 1)
@@ -77,11 +77,11 @@ class Simulator(object):
             goal.position.z = t.transform.translation.z + .001 * msg.wrench.force.z
         
         linear,angular = self.get_diff_pose_trans(goal,t)
-        print("****")
-        print(q)
-        print(linear)
+        #print("****")
+        #print(q)
+        #print(linear)
         linear,angular = self.get_lin_ang_rot(linear,angular,q) 
-        print(linear)
+        #print(linear)
 
         vel = Twist()
         vel.linear.x =  linear[0]
@@ -127,7 +127,6 @@ class Simulator(object):
                 if progress == 1:
                     self._desired_joint_pose = None
                 return    
-
             for i,v in enumerate(self._current_velocity):
                 self._current_joint[i]+=v/self._freq
             joint = JointState()
@@ -137,7 +136,7 @@ class Simulator(object):
             self._viz_pub.publish(joint)
 
     def on_joint(self, msg):
-        self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
+        self._current_velocity = [0,0,0,0,0,0,0]
         self._desired_joint_pose = msg
         self._starting_joint = copy.deepcopy(self._current_joint)
         self._starting_time = rospy.Time.now()
@@ -153,7 +152,7 @@ class Simulator(object):
                 joint.position = list(self._current_joint)
                 self._viz_pub.publish(joint)
                 self._sim = False
-            self._current_velocity = [0.,0.,0.,0.,0.,0.,0.,0.,0.]
+            self._current_velocity = [0,0,0,0,0,0,0]
         if cmd == "start_sim":
             if not self._sim:
                 self._pre_sim_joints = copy.deepcopy(self._current_joint)
