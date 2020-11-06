@@ -3,7 +3,7 @@ import rospy
 import actionlib
 import authoring_msgs.msg
 from panda_ros_msgs.msg import HybridPose, JointPose
-from geometry_msgs.msg import PoseStamped, Pose, Wrench, TwistStamped
+from geometry_msgs.msg import PoseStamped, Pose, Wrench, TwistStamped, Twist
 from std_msgs.msg import Bool, String
 from sensor_msgs.msg import JointState
 import tf
@@ -77,6 +77,15 @@ class AuthoringAction(object):
         self._chain_pub = rospy.Publisher("/panda/set_kinematic_chain", String, queue_size=2)
         self._link_pub = rospy.Publisher("/panda/set_ee_link", String, queue_size=2)
 
+        # Deformation
+        self._deformation_sub = rospy.Subscriber("/deformations", Twist, self.on_deformation)
+        self._deformation = Twist()
+        self._deformation_decay = .999
+        self._decaying = True
+        self._deformation_smoothing = .0001
+
+
+
         self._camera_control = False
         self._velocity_sent = False
         
@@ -86,6 +95,15 @@ class AuthoringAction(object):
         # Pause
         self._pause = False
         self._start_pause_time = None
+
+    def on_deformation(self, msg):
+        self._deformation.linear.x += msg.linear.x * self._deformation_smoothing
+        self._deformation.linear.y += msg.linear.y * self._deformation_smoothing
+        self._deformation.linear.z += msg.linear.z * self._deformation_smoothing
+        self._deformation.angular.x += msg.angular.x * self._deformation_smoothing
+        self._deformation.angular.y += msg.angular.y * self._deformation_smoothing
+        self._deformation.angular.z += msg.angular.z * self._deformation_smoothing
+        self._decaying = False
 
     def on_state(self, msg):
         self._current_joint = msg
@@ -155,6 +173,7 @@ class AuthoringAction(object):
         self._velocity_sent = False
         self._pause = False
         self._success = True
+        self._deformation = Twist()
         if goal.goal.type == goal.goal.BIAS_FORCES:
             self.bias_forces() 
             self.success()
@@ -181,6 +200,16 @@ class AuthoringAction(object):
                 return
             self.update_command()
             r.sleep()
+
+    def decay_deformation(self):
+        if self._decaying:
+            self._deformation.linear.x *= self._deformation_decay
+            self._deformation.linear.y *= self._deformation_decay
+            self._deformation.linear.z *= self._deformation_decay
+            self._deformation.angular.x *= self._deformation_decay
+            self._deformation.angular.y *= self._deformation_decay
+            self._deformation.angular.z *= self._deformation_decay
+        self._decaying = True
 
     def update_command(self):
         if self._pause:
@@ -503,7 +532,12 @@ class AuthoringAction(object):
         #else:
         #    print("not")
         #    print(pose.pose.position.z)
+        self.decay_deformation()
 
+        pose.pose.position.x+=self._deformation.linear.x
+        pose.pose.position.y+=self._deformation.linear.y
+        pose.pose.position.z+=self._deformation.linear.z
+        
         pose.wrench.force.x += self._bias.force.x
         pose.wrench.force.y += self._bias.force.y
         pose.wrench.force.z += self._bias.force.z
