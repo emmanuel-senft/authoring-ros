@@ -6,6 +6,7 @@ import asyncio
 import websockets
 import datetime
 import random
+import os
 
 #!/usr/bin/env python3
 import rospy
@@ -14,8 +15,9 @@ import signal
 import ros_numpy
 import sys
 from std_msgs.msg import String
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
+import numpy as np
 
 from threading import Thread
 import cv2
@@ -39,7 +41,7 @@ class Test(object):
         self._parser_sub = rospy.Subscriber("/parser/gui_info", String, self.on_parser, queue_size = 1)
         self._event_sub = rospy.Subscriber("/event", String, self.on_event, queue_size = 1)
         #self._img_sub = rospy.Subscriber("/rviz1/camera1/image", Image, self.on_image, queue_size = 1)
-        self._img_sub = rospy.Subscriber("/rviz1/camera1/image", Image, self.on_image, queue_size = 1)
+        self._img_sub = rospy.Subscriber("/rviz1/camera1/image/compressed", CompressedImage, self.on_image, queue_size = 1)
         
             
     def on_event(self, msg):
@@ -60,12 +62,13 @@ class Test(object):
             self._command_pub.publish(String(msg[len("command:"):]))
 
     def on_image(self, msg):
-        cv_image = self._bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
-        if msg.encoding.startswith("rgb"):
-            cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        #np_arr = np.frombuffer(msg.data, np.uint8)
+        #cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)#self._bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        #if msg.encoding.startswith("rgb"):
+        #    cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         #img_str = cv2.imencode('.jpg', cv_image)[1].tostring()# / tobyte
-        retval, buffer = cv2.imencode('.jpg', cv_image)
-        jpg_as_text = base64.b64encode(buffer)
+        #retval, buffer = cv2.imencode('.jpg', cv_image)
+        jpg_as_text = base64.b64encode(msg.data)
 
         self._new_img = True
         print(len(self._img_queue))
@@ -93,8 +96,6 @@ async def producer():
     else:
         return t._img_queue.pop(0)
 
-
-
 async def consumer_handler(websocket, path):
     async for message in websocket:
         await consumer(message)
@@ -117,13 +118,12 @@ async def handler(websocket, path):
     for task in pending:
         task.cancel()
 
-
-rospy.init_node('cloud_filter')
+rospy.init_node('socket')
 t = Test()
 signal.signal(signal.SIGINT, t.signal_handler)
 Thread(target=t.run).start()
 
-start_server = websockets.serve(handler, "192.168.0.160", 49154)
+start_server = websockets.serve(handler, os.environ.get('ROS_IP'), 49152)
 
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()
