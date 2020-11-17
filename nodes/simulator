@@ -76,12 +76,16 @@ class Simulator(object):
         if msg.sel_vector[2] == 0:
             goal.position.z = t.transform.translation.z + .001 * msg.wrench.force.z
         
+        q_inv = copy.deepcopy(q)
+        q_inv.x = -q_inv.x
+        q_inv.y = -q_inv.y
+        q_inv.z = -q_inv.z
+
+        self.get_trans_rot(t.transform,q_inv)
+        self.get_pose_rot(goal,q_inv)
         linear,angular = self.get_diff_pose_trans(goal,t)
         #print("****")
         #print(q)
-        #print(linear)
-        linear,angular = self.get_lin_ang_rot(linear,angular,q) 
-        #print(linear)
 
         vel = Twist()
         vel.linear.x =  linear[0]
@@ -197,7 +201,7 @@ class Simulator(object):
         v = PyKDL.Vector(linear[0],linear[1],linear[2])
         orientation = PyKDL.Rotation.RPY(angular[0],angular[1],angular[2])
         linear = rot*v
-        angular = (rot*orientation).GetRPY()
+        angular = (rot.Inverse()*orientation).GetRPY()
         return (linear,angular)
         
     def get_trans_rot(self, t, q):
@@ -216,6 +220,23 @@ class Simulator(object):
         t.rotation.y = q_rot[1]
         t.rotation.z = q_rot[2]
         t.rotation.w = q_rot[3]
+        
+    def get_pose_rot(self, pose, q):
+        p = pose.position
+        o = pose.orientation
+        
+        rot = PyKDL.Rotation.Quaternion(q.x,q.y,q.z,q.w)
+        v = PyKDL.Vector(p.x,p.y,p.z)
+        orientation = PyKDL.Rotation.Quaternion(o.x,o.y,o.z,o.w)
+        v_rot = rot.Inverse()*v
+        q_rot = (rot.Inverse()*orientation).GetQuaternion()
+        p.x = v_rot[0]
+        p.y = v_rot[1]
+        p.z = v_rot[2]
+        o.x = q_rot[0]
+        o.y = q_rot[1]
+        o.z = q_rot[2]
+        o.w = q_rot[3]
 
     def get_diff_pose_trans(self,pose, t):
         trans = t.transform.translation
