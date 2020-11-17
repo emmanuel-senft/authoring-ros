@@ -251,7 +251,9 @@ class AuthoringAction(object):
             ee_frame = ('sim_' if self._current_action.sim.data else '') + 'panda_gripper'
             t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
             h = HybridPose()
-            h.constraint_frame = t.transform.rotation
+            h.constraint_frame.w = 1#t.transform.rotation
+            h.pose.orientation = t.transform.rotation
+            h.pose.position = t.transform.translation 
             h.sel_vector=[0,0,0,0,0,0]
 
             self.publish_pose(h)
@@ -533,14 +535,19 @@ class AuthoringAction(object):
         #    print("not")
         #    print(pose.pose.position.z)
         self.decay_deformation()
+        q = pose.constraint_frame
+        rot = PyKDL.Rotation.Quaternion(q.x,q.y,q.z,q.w)
 
-        pose.pose.position.x+=self._deformation.linear.x
-        pose.pose.position.y+=self._deformation.linear.y
-        pose.pose.position.z+=self._deformation.linear.z
+        v = PyKDL.Vector(self._deformation.linear.x,self._deformation.linear.y,self._deformation.linear.z)
+        deformation = rot.Inverse()*v
+
+        pose.pose.position.x+=deformation[0]
+        pose.pose.position.y+=deformation[1]
+        pose.pose.position.z+=deformation[2]
         
-        pose.wrench.force.x += self._bias.force.x
-        pose.wrench.force.y += self._bias.force.y
-        pose.wrench.force.z += self._bias.force.z
+        pose.wrench.force.x += self._bias.force.x+deformation[0]*100
+        pose.wrench.force.y += self._bias.force.y+deformation[1]*100
+        pose.wrench.force.z += self._bias.force.z+deformation[2]*100
 
         pose.wrench.torque.x += self._bias.torque.x
         pose.wrench.torque.y += self._bias.torque.y
