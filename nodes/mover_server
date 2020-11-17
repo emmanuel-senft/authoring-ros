@@ -78,12 +78,13 @@ class AuthoringAction(object):
         self._link_pub = rospy.Publisher("/panda/set_ee_link", String, queue_size=2)
 
         # Deformation
-        self._deformation_sub = rospy.Subscriber("/deformations", Twist, self.on_deformation)
+        self._deformation_sub = rospy.Subscriber("/fd/twist", Twist, self.on_deformation)
+        self._button_sub = rospy.Subscriber("/fd/button", Bool, self.on_button)
         self._deformation = Twist()
-        self._deformation_decay = .999
+        self._deformation_decay = .995
         self._decaying = True
-        self._deformation_smoothing = .0001
-
+        self._deformation_smoothing = .0005
+        self._skip = False
 
 
         self._camera_control = False
@@ -97,13 +98,17 @@ class AuthoringAction(object):
         self._start_pause_time = None
 
     def on_deformation(self, msg):
-        self._deformation.linear.x += msg.linear.x * self._deformation_smoothing
-        self._deformation.linear.y += msg.linear.y * self._deformation_smoothing
-        self._deformation.linear.z += msg.linear.z * self._deformation_smoothing
+        self._deformation.linear.x += np.round(msg.linear.x,3) * self._deformation_smoothing
+        self._deformation.linear.y += np.round(msg.linear.y,3) * self._deformation_smoothing
+        self._deformation.linear.z += np.round(msg.linear.z,3) * self._deformation_smoothing
         self._deformation.angular.x += msg.angular.x * self._deformation_smoothing
         self._deformation.angular.y += msg.angular.y * self._deformation_smoothing
         self._deformation.angular.z += msg.angular.z * self._deformation_smoothing
         self._decaying = False
+
+    def on_button(self, msg):
+        if msg.data:
+            self._skip = True
 
     def on_state(self, msg):
         self._current_joint = msg
@@ -173,6 +178,7 @@ class AuthoringAction(object):
         self._velocity_sent = False
         self._pause = False
         self._success = True
+        self._skip = False
         self._deformation = Twist()
         if goal.goal.type == goal.goal.BIAS_FORCES:
             self.bias_forces() 
@@ -212,6 +218,8 @@ class AuthoringAction(object):
         self._decaying = True
 
     def update_command(self):
+        if self._skip:
+            self.success()
         if self._pause:
             self._cart_vel_pub.publish(TwistStamped())
         elif self._current_action and (self._current_action.type == self._current_action.MOVE or self._current_action.type == self._current_action.STOP):
