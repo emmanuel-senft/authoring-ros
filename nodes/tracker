@@ -8,7 +8,6 @@ from std_msgs.msg import String, ColorRGBA
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import PoseStamped, Point, Pose, PoseArray, Quaternion, Twist, TransformStamped
 from authoring_msgs.msg import Action, Command, POI, POIArray
-from pose_detector.msg import DetectedObject,DetectedObjects
 import tf
 import tf2_ros
 import tf2_geometry_msgs
@@ -39,6 +38,8 @@ class Tracker(object):
         self._grasped_object = None
         self._sim = False
 
+        self._virtual = rospy.get_param('~only_virtual')
+
         self._cmd = None
         self._tf_array = []
 
@@ -47,7 +48,10 @@ class Tracker(object):
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("event", String, self.on_event, queue_size = 1)
-        self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
+        if not self._virtual:
+            from pose_detector.msg import DetectedObject,DetectedObjects
+            self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
+
         self._simulated_objects_sub = rospy.Subscriber("/simulated_objects", POIArray, self.on_simulated_objects)
 
     def get_diff_poses(self, p1, p2):

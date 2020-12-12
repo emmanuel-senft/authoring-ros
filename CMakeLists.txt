@@ -13,7 +13,12 @@ find_package(catkin REQUIRED COMPONENTS
         image_transport 
         visualization_msgs
         image_geometry 
-        nodelet)
+        ros_numpy
+        rviz_camera_stream
+        panda_ros_msgs
+        authoring_msgs
+        sensor_msgs
+        )
 
 ## System dependencies
 find_package(OpenCV REQUIRED)
