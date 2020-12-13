@@ -299,7 +299,7 @@ class AuthoringAction(object):
             return True
         if not self._angle_move:
             self._angle_move = True
-            max_vel = .5
+            max_vel = 2 if self._virtual else .5
             d_t = np.fabs(max_diff)/max_vel
 
             pose = JointPose()
@@ -430,7 +430,6 @@ class AuthoringAction(object):
         goal.wrench.force.z = -2*self._push_force
         
         self.publish_pose(goal)
-
         return False
 
     def go_to_position(self):
@@ -476,7 +475,6 @@ class AuthoringAction(object):
             return True
     
         progress = min((rospy.Time.now() - self._starting_time).to_sec()/(goal.header.stamp - self._starting_time).to_sec(),1)
-        progress = min(progress,1)
         goal.pose = self.interpolate_poses(self._starting_pose.pose, goal.pose,progress)
         
         self.publish_pose(goal)
@@ -604,8 +602,8 @@ class AuthoringAction(object):
 
     def get_time_between_pose(self, start, end):
         linear,angular = self.get_diff_poses(start,end)
-        max_v_lin = .30
-        max_v_ang = 1
+        max_v_lin = 20. if self._virtual else .3
+        max_v_ang = 40. if self._virtual else 1
         t_lin = np.sqrt(np.sum(linear**2)) / max_v_lin
         t_ang = max(np.fabs(angular))/max_v_ang
         return max(t_lin,t_ang)
