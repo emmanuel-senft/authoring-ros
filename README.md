@@ -6,7 +6,7 @@ Robot Controller
 **This work is part of the code for the implementation of the system presented in Task-Level Authoring for Robot Teleoperation. It is designed to be used with the
 [Authoring Interface](https://github.com/emmanuel-senft/authoring-gui/tree/authoring-study), the [Point-and-Click Interface](https://github.com/emmanuel-senft/authoring-gui/tree/point-click) or the [Cartesian interface](https://github.com/emmanuel-senft/authoring-gui/tree/cartesian).*
 
-[comment]: # ( ![Robot workspace](docs/setup.jpg) 
+![Robot workspace](docs/workspace.jpg)
 
 This repository contains  the ROS code for the robot controller for the
 'Task-Level Authoring for Robot Teleoperation' study.
