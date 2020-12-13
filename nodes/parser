@@ -67,6 +67,9 @@ class Parser(object):
         self._depth = None
         self._numpy_depth = None
         self._new_depth = True
+        self._behavior_recording = False
+        self._behaviors = []
+        self._actions_recorded = []
     
     def _on_depth(self,msg):
         self._depth = msg
@@ -79,8 +82,19 @@ class Parser(object):
         l = msg.data.split(";")
         event = l[0]
         
+        if event == "record":
+            self._behavior_recording = True
+        if event == "stop_record":
+            self._behavior_recording = False
+            if len(self._actions_recorded) != 0:
+                self._event_pub.publish("recorded;"+"behavior_"+str(len(self._behaviors))+";"+";".join(self._actions_recorded))
+                self._behaviors.append(copy.deepcopy(self._actions_recorded))
+                self._actions_recorded = []
+
         if event == "motion_finished" or event == "wait":
             self.publish_pois()
+        if event == "action_finished" and self._behavior_recording:
+            self._actions_recorded.append(l[1])
 
     def on_poi(self, msg):
         self._pois = []
@@ -258,9 +272,9 @@ class Parser(object):
         if command_type == "pause":
             self._event_pub.publish("pause")
             return
-        if command_type == "play":
-            self._event_pub.publish("play")
-            return
+        #if command_type == "play":
+        #    self._event_pub.publish("play")
+        #    return
         if command_type == 'init_gui' or command_type == "lock":
             self.publish_pois()
         if command_type == 'save_view' and self._joints is not None:
@@ -286,6 +300,22 @@ class Parser(object):
                 cmd.core_action.append(action)
                 self._command_pub.publish(cmd)
                 return
+
+        #if command_type == 'play':
+        #    n = int(list_actions[1])
+        #    if n < len(self._saved_view):
+        #        action = Action()
+        #        action.poses.header.frame_id = REFERENCE_FRAME
+        #        action.type = action.MOVE_ANGLE
+        #        action.joint_pose = self._saved_view[n]
+        #        pose = HybridPose()
+        #        pose.constraint_frame.w = 1
+        #        action.poses.poses.append(pose)
+        #        cmd = Command()
+        #        cmd.type = cmd.EXEC
+        #        cmd.core_action.append(action)
+        #        self._command_pub.publish(cmd)
+        #        return
                 
         if command_type == 'panda_goal':
             pose = [float(v) for v in list_actions[1].split(",")]
@@ -546,8 +576,7 @@ class Parser(object):
             marker.id = int(cmd[1])
             self._marker_pub.publish(marker)
             return
-        actions = []
-
+        
         list_actions.pop(0)
         #for action in list_actions:
         #    cmd = action.split(":")
@@ -559,8 +588,35 @@ class Parser(object):
         #        except Exception as e:
         #            print(e)
         #            return
+        
         if self._depth is None:
             return
+        
+        if command_type == "play":
+            index = int(list_actions[0].split("_")[1])
+            actions = self.parse_actions(self._behaviors[index])    
+        else:
+            actions = self.parse_actions(list_actions)
+        if actions is None:
+            return
+
+        cmd = Command()
+        if command_type == "exec" or command_type == "play":
+            cmd.type = cmd.EXEC
+        if command_type == "sim":
+            cmd.type = cmd.SIM
+        if command_type == "viz":
+            cmd.type = cmd.VIZ
+        if command_type == "edit":
+            cmd.type = cmd.EDIT
+        for action in actions:
+            cmd.core_action.append(action)
+        ##print(cmd)
+        if cmd.type != cmd.VIZ:
+            self._command_pub.publish(cmd)
+
+    def parse_actions(self, list_actions):
+        actions = []
         moved = {}
         for action in list_actions:
             cmd = action.split(":")
@@ -599,7 +655,7 @@ class Parser(object):
                     h_end = self.get_rotated_point(points[1])
                     if h_start == None or h_end == None:
 
-                        return
+                        return None
                     action.pose = h_start
                     action.poses.poses.append(h_start)
                     action.poses.poses.append(h_end)
@@ -608,7 +664,7 @@ class Parser(object):
                     for p in action.poses.poses:
                         if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.30:
                             self._gui_pub.publish(String("out_of_reach"))
-                            return    
+                            return None    
 
                     actions.append(action)
 
@@ -623,14 +679,14 @@ class Parser(object):
                     coords = cmd[1].split('_')
                     h_grasp = self.get_rotated_point(coords[0])
                     if h_grasp == None:
-                        return 
+                        return None 
                     action.poses.poses.append(h_grasp)
                     action.pose = h_grasp
                     for coord in coords[1:]:
                         coord = coord.split(',')
                         pose = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
                         if pose == None:
-                            return 
+                            return None 
                         pose = self.get_hybrid_pose(self._tfBuffer.transform(pose,REFERENCE_FRAME))
                         pose.pose.orientation.x = 0
                         pose.pose.orientation.y = 0
@@ -640,7 +696,7 @@ class Parser(object):
                         action.poses.poses.append(pose)
                     action.item = String(cmd[1])
                 else:
-                    return
+                    return None
 
             #for p in action.poses.poses:
             #    if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.28:
@@ -652,21 +708,7 @@ class Parser(object):
             action.type = self.get_action_from_name(action, name)
 
             actions.append(action)
-
-        cmd = Command()
-        if command_type == "exec":
-            cmd.type = cmd.EXEC
-        if command_type == "sim":
-            cmd.type = cmd.SIM
-        if command_type == "viz":
-            cmd.type = cmd.VIZ
-        if command_type == "edit":
-            cmd.type = cmd.EDIT
-        for action in actions:
-            cmd.core_action.append(action)
-        ##print(cmd)
-        if cmd.type != cmd.VIZ:
-            self._command_pub.publish(cmd)
+        return actions
 
     def get_action_from_name(self, a, name):
         if name == 'Wipe':

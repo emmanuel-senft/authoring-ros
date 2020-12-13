@@ -709,7 +709,10 @@ class Planner(object):
             print("At action "+self.get_type(action))
             print(action)
             if action.finished.data:
-                self._event_pub.publish(String("action_finished;"+self.get_type(action)+":"+action.item.data))
+                event = "action_finished;"+self.get_type(action)
+                if self.get_type(action) != "Reset":
+                    event+=":"+action.item.data
+                self._event_pub.publish(String(event))
                 continue
             goal = authoring_msgs.msg.AuthoringGoal()
             goal.goal = action

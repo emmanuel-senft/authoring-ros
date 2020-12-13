@@ -53,6 +53,7 @@ class Tracker(object):
             self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
 
         self._simulated_objects_sub = rospy.Subscriber("/simulated_objects", POIArray, self.on_simulated_objects)
+        self._init_sim = None
 
     def get_diff_poses(self, p1, p2):
         return np.sqrt((p1.position.x-p2.position.x)**2+(p1.position.y-p2.position.y)**2+(p1.position.z-p2.position.z)**2)
@@ -141,8 +142,9 @@ class Tracker(object):
         self.publish_pois()
 
     def on_simulated_objects(self, msg):
+        self._init_sim = msg.poi_array
         for p in msg.poi_array:
-            self._objects.append(p)
+            self._objects.append(copy.deepcopy(p))
 
     def on_command(self, msg):
         self._cmd = msg
@@ -155,6 +157,14 @@ class Tracker(object):
         event = msg.data.split(';')
         if event[0] == "start_sim":
             self._sim = True
+        if event[0] == "reset_world":
+            print("resetting")
+            for poi in self._init_sim:
+                for p in self._objects:
+                    if poi.id == p.id and poi.type == p.type:
+                        p.pose = copy.deepcopy(poi.pose)
+                        break
+        
         if event[0] == "grasped":
             self._grasped_object = event[1]
             print("grasping "+self._grasped_object)
