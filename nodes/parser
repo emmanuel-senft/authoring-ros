@@ -23,6 +23,7 @@ import tf
 import tf2_ros
 import tf2_geometry_msgs
 import PyKDL
+import types
 
 
 REFERENCE_FRAME='panda_link0'
@@ -68,8 +69,10 @@ class Parser(object):
         self._numpy_depth = None
         self._new_depth = True
         self._behavior_recording = False
-        self._behaviors = []
+        self._behaviors = []#["Move:screw_1-box_0;Reset"]
         self._actions_recorded = []
+        self._triggers = []
+        self._moving = False
     
     def _on_depth(self,msg):
         self._depth = msg
@@ -82,19 +85,35 @@ class Parser(object):
         l = msg.data.split(";")
         event = l[0]
         
+        if event.startswith("trigger"):
+            #data: "trigger_1;screw;pix_pos:1200-1350_750-950"
+            t = types.SimpleNamespace()
+            t.view_point = PoseStamped()
+            t.id = l[0]
+            t.object = l[1]
+            t.conditions = l[2]
+            t.behavior = len(self._behaviors)
+            self._triggers = [t]
         if event == "record":
             self._behavior_recording = True
         if event == "stop_record":
             self._behavior_recording = False
             if len(self._actions_recorded) != 0:
                 self._event_pub.publish("recorded;"+"behavior_"+str(len(self._behaviors))+";"+";".join(self._actions_recorded))
-                self._behaviors.append(copy.deepcopy(self._actions_recorded))
+                self._behaviors.append(";".join(copy.deepcopy(self._actions_recorded)))
                 self._actions_recorded = []
 
         if event == "motion_finished" or event == "wait":
             self.publish_pois()
+
         if event == "action_finished" and self._behavior_recording:
             self._actions_recorded.append(l[1])
+        
+        if msg.data == "start_exec":
+            self._moving = True
+        
+        if msg.data == "motion_finished":
+            self._moving = False
 
     def on_poi(self, msg):
         self._pois = []
@@ -109,7 +128,7 @@ class Parser(object):
             try:
                 for p in self._pois:
                     #Inform interface of poi
-                    pixel = self.get_pixel_from_pose(p.pose)
+                    pixel = self.get_pixel_from_pose_as_string(p.pose)
                     if pixel is None:
                         continue
                     name = self.get_name(p)
@@ -184,13 +203,19 @@ class Parser(object):
         point.z=d/p3d[2]*p3d[2]
         return point
     
-    def get_pixel_from_pose(self, pose):
-        p = self._tfBuffer.transform(pose,CAMERA_FRAME)
+    def get_pixel_from_pose(self, pose, viewpoint = None):
+        if viewpoint is None:
+            p = self._tfBuffer.transform(pose,CAMERA_FRAME)
         p = p.pose.position
         if p.z < 0:
             return None
         p=[p.x,p.y,p.z]
-        pixel = self._model.project3dToPixel(p)
+        return self._model.project3dToPixel(p)
+    
+    def get_pixel_from_pose_as_string(self, pose, viewpoint = None):
+        pixel = self.get_pixel_from_pose(pose, viewpoint)
+        if pixel is None:
+            return pixel
         return str(int(pixel[0]))+","+str(int(pixel[1]))
 
     def get_pixel_from_point(self, p):
@@ -198,7 +223,7 @@ class Parser(object):
         pose.pose.position = p
         pose.pose.orientation.w = 1
         pose.header.frame_id = REFERENCE_FRAME
-        return self.get_pixel_from_pose(pose)
+        return self.get_pixel_from_pose_as_string(pose)
 
     def publish_pose(self,point):
         pose = PoseStamped()
@@ -615,7 +640,73 @@ class Parser(object):
         if cmd.type != cmd.VIZ:
             self._command_pub.publish(cmd)
 
+    def check_triggers(self):
+        if self._moving:
+            return
+
+        #t = types.SimpleNamespace()
+        #t.view_point = PoseStamped()
+        #t.object = "screw"
+        #t.conditions = "pix_pose:1200-1350_750-950"
+        #t.behavior = 0
+        #self._triggers = [t]
+
+        for t in self._triggers:
+            if t.behavior >= len(self._behaviors):
+                continue
+            conditions = t.conditions.split(";")
+            print(t)
+            for p in self._pois:
+                for condition in conditions:
+                    if t.object != p.type.data:
+                        continue
+                    condition_type = condition.split(":")[0]
+                    condition_arguments = condition.split(":")[1]
+                    if condition_type == "pix_pose":
+                        x_cond = condition_arguments.split("_")[0]
+                        y_cond = condition_arguments.split("_")[1]
+                        x_low = int(x_cond.split("-")[0])
+                        x_high = int(x_cond.split("-")[1])
+                        y_low = int(y_cond.split("-")[0])
+                        y_high = int(y_cond.split("-")[1])
+                        pixel = self.get_pixel_from_pose(p.pose)
+                        
+                        if pixel is None:
+                            continue
+                        print(self.get_name(p).replace(":","_"))
+                        print(pixel)
+                        print(y_low)
+                        print(y_high)
+                        if pixel[0] < x_high and pixel[0]>x_low and pixel[1] < y_high and pixel[1]>y_low:
+                            print("doing it")
+                            behavior = self._behaviors[t.behavior]
+                            print(behavior)
+                            behavior = self.generalize_behavior(behavior, t.object, self.get_name(p).replace(":","_")).split(";")
+                            print(behavior)
+                            if behavior is None:
+                                print("error")
+                            actions = self.parse_actions(behavior)  
+                            cmd = Command()
+                            cmd.type = cmd.EXEC
+                            for action in actions:
+                                cmd.core_action.append(action)
+                            self._command_pub.publish(cmd)
+                            return
+    
+    def generalize_behavior(self, behavior, object_type, target):
+        actions = behavior.split(";")
+        found = False
+        for action in actions:
+            for arg in action.split(":"):
+                for item in arg.split("-"):
+                    if item.startswith(object_type):
+                        print("found")
+                        print(target)
+                        return behavior.replace(item,target)
+        return None 
+
     def parse_actions(self, list_actions):
+        print(list_actions)
         actions = []
         moved = {}
         for action in list_actions:
@@ -751,11 +842,11 @@ class Parser(object):
     def distance(self, p1, p2):
         return np.sqrt((p1.x-p2.x)**2+(p1.y-p2.y)**2+(p1.z-p2.z)**2)
 
-
     def run(self):
         r = rospy.Rate(self._freq)
         while not rospy.is_shutdown():
             self.publish_pois()
+            self.check_triggers()
             r.sleep()
 
     def signal_handler(self, signal, frame):
