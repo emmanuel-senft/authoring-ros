@@ -25,6 +25,8 @@ Dependencies:
 - [rviz_camera_stream](https://github.com/lucasw/rviz_camera_stream)
 - [ros_numpy](https://github.com/eric-wieser/ros_numpy)
 - [eigen3](https://eigen.tuxfamily.org/dox/)
+- [python websockets](https://websockets.readthedocs.io/en/stable/intro.html)
+- [scipy](https://www.scipy.org/)
 
 Recommend to use [catkin_tools](https://catkin-tools.readthedocs.io/en/latest/) to compile.
 Then build with:
