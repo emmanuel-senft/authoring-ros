@@ -91,7 +91,7 @@ class Parser(object):
             t.view_point = PoseStamped()
             t.id = l[0]
             t.object = l[1]
-            t.conditions = l[2]
+            t.conditions = l[2].split(",")
             t.behavior = len(self._behaviors)
             self._triggers = [t]
         if event == "record":
@@ -132,7 +132,7 @@ class Parser(object):
                     if pixel is None:
                         continue
                     name = self.get_name(p)
-                    self._poi_gui+=name+":"+pixel+";"
+                    self._poi_gui+=name+":"+pixel+":"+p.state.data+";"
 
                 self._poi_gui = self._poi_gui[:-1]
                 self._gui_pub.publish(self._poi_gui)
@@ -654,12 +654,11 @@ class Parser(object):
         for t in self._triggers:
             if t.behavior >= len(self._behaviors):
                 continue
-            conditions = t.conditions.split(";")
             print(t)
             for p in self._pois:
-                for condition in conditions:
-                    if t.object != p.type.data:
-                        continue
+                if t.object != p.type.data:
+                    continue
+                for condition in t.conditions:
                     condition_type = condition.split(":")[0]
                     condition_arguments = condition.split(":")[1]
                     if condition_type == "pix_pose":
@@ -672,26 +671,29 @@ class Parser(object):
                         pixel = self.get_pixel_from_pose(p.pose)
                         
                         if pixel is None:
-                            continue
-                        print(self.get_name(p).replace(":","_"))
-                        print(pixel)
-                        print(y_low)
-                        print(y_high)
+                            break
+
                         if pixel[0] < x_high and pixel[0]>x_low and pixel[1] < y_high and pixel[1]>y_low:
-                            print("doing it")
-                            behavior = self._behaviors[t.behavior]
-                            print(behavior)
-                            behavior = self.generalize_behavior(behavior, t.object, self.get_name(p).replace(":","_")).split(";")
-                            print(behavior)
-                            if behavior is None:
-                                print("error")
-                            actions = self.parse_actions(behavior)  
-                            cmd = Command()
-                            cmd.type = cmd.EXEC
-                            for action in actions:
-                                cmd.core_action.append(action)
-                            self._command_pub.publish(cmd)
-                            return
+                            continue
+                        else:
+                            break
+                    if condition_type == "state":
+                        if condition_arguments in p.state.data:
+                            continue
+                        else:
+                            break
+                else:
+                    behavior = self._behaviors[t.behavior]
+                    behavior = self.generalize_behavior(behavior, t.object, self.get_name(p).replace(":","_")).split(";")
+                    if behavior is None:
+                        print("error")
+                    actions = self.parse_actions(behavior)  
+                    cmd = Command()
+                    cmd.type = cmd.EXEC
+                    for action in actions:
+                        cmd.core_action.append(action)
+                    self._command_pub.publish(cmd)
+                    return
     
     def generalize_behavior(self, behavior, object_type, target):
         actions = behavior.split(";")

@@ -34,12 +34,14 @@ class Poi(object):
         poi_init.pose.pose.orientation.w=1
         poi_init.pose.header.frame_id = REFERENCE_FRAME
         poi_init.type = String("screw")
+        poi_init.state = String("unscrewed")
         poi_init.id = 0
         #self._array.poi_array.append(poi_init)
         screw_n = 0
         hole_n = 0
         box_poi = copy.deepcopy(poi_init)
         box_poi.type = String("box")
+        box_poi.state = String("")
         box_poi.pose.pose.position.x+=.07
         box_poi.pose.pose.position.y+=0.05
         box_poi.pose.pose.position.z+=0.08
@@ -83,6 +85,7 @@ class Poi(object):
                 poi.id = hole_n
                 hole_n += 1
                 poi.type = String("hole")
+                poi.state = String("")
                 self._array.poi_array.append(poi)
 
         first_drawer = POI()

@@ -77,6 +77,8 @@ class Tracker(object):
         pose.pose.orientation.w = 1
         poi = POI()
         poi.type = o.mesh_name
+        if poi.type.data == "screw":
+            poi.state = "unscrewed"
         poi.pose = pose
         return poi
 
@@ -184,6 +186,25 @@ class Tracker(object):
                 self._grasped_object = None
             
             self.publish_pois()
+        
+        if event[0] == "action_finished":
+            a = event[1].split(":")[0]
+            if a == "Reset":
+                return
+            item_type = event[1].split(":")[1].split("_")[0]
+            item_id = int(event[1].split(":")[1].split("_")[1])
+            if a == "Tighten":
+                print("searching")
+                for poi in self._init_pois+self._objects:
+                    if poi.type.data == item_type and poi.id == item_id:
+                        poi.state = String("screwed")
+                        print("found!")
+                        return
+            if a == "Loosen":
+                for poi in self._init_pois+self._objects:
+                    if poi.type == item_type and poi.id == item_id:
+                        poi.state = String("unscrewed")
+                        return
 
     def get_transform(self, poi):
         if self.get_name(poi) == self._grasped_object:
