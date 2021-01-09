@@ -59,7 +59,7 @@ class Parser(object):
             self._joint_sub = rospy.Subscriber("/simulator/joint_states", JointState, self.on_joints)
         else:
             self._joint_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_joints)
-        self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self._on_depth)
+        self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self.on_depth)
         
         self._joints = None
         self._camera_t = None
@@ -74,7 +74,7 @@ class Parser(object):
         self._triggers = []
         self._moving = False
     
-    def _on_depth(self,msg):
+    def on_depth(self,msg):
         self._depth = msg
         self._new_depth = True
 
