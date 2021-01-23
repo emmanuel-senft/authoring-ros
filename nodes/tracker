@@ -78,7 +78,7 @@ class Tracker(object):
         poi = POI()
         poi.type = o.mesh_name
         if poi.type.data == "screw":
-            poi.state = "unscrewed"
+            poi.state.data = "unscrewed"
         poi.pose = pose
         return poi
 
@@ -194,15 +194,13 @@ class Tracker(object):
             item_type = event[1].split(":")[1].split("_")[0]
             item_id = int(event[1].split(":")[1].split("_")[1])
             if a == "Tighten":
-                print("searching")
                 for poi in self._init_pois+self._objects:
                     if poi.type.data == item_type and poi.id == item_id:
                         poi.state = String("screwed")
-                        print("found!")
                         return
             if a == "Loosen":
                 for poi in self._init_pois+self._objects:
-                    if poi.type == item_type and poi.id == item_id:
+                    if poi.type.data == item_type and poi.id == item_id:
                         poi.state = String("unscrewed")
                         return
 
