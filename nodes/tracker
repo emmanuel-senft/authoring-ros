@@ -3,6 +3,7 @@ import numpy as np
 import math
 import rospy
 import signal
+import random
 import sys
 from std_msgs.msg import String, ColorRGBA
 from visualization_msgs.msg import Marker
@@ -45,6 +46,9 @@ class Tracker(object):
 
         self._age_threshold = 3
 
+        self._init_sim = None
+        self._world_type = "screws"
+
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("event", String, self.on_event, queue_size = 1)
@@ -53,7 +57,6 @@ class Tracker(object):
             self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
 
         self._simulated_objects_sub = rospy.Subscriber("/simulated_objects", POIArray, self.on_simulated_objects)
-        self._init_sim = None
 
     def get_diff_poses(self, p1, p2):
         return np.sqrt((p1.position.x-p2.position.x)**2+(p1.position.y-p2.position.y)**2+(p1.position.z-p2.position.z)**2)
@@ -159,13 +162,75 @@ class Tracker(object):
         event = msg.data.split(';')
         if event[0] == "start_sim":
             self._sim = True
-        if event[0] == "reset_world":
+        if event[0] == "reset_world_screws":
+            self._world_type = "screws"
             print("resetting")
+            self._objects = []
             for poi in self._init_sim:
-                for p in self._objects:
-                    if poi.id == p.id and poi.type == p.type:
-                        p.pose = copy.deepcopy(poi.pose)
-                        break
+                self._objects.append(copy.deepcopy(poi))
+                break
+        if event[0] == "reset_world_sort":
+            self._world_type = "sort"
+            print("resetting to sort")
+            self._objects = []
+
+            poi_init = POI()
+            poi_init.pose.pose.position.x=.4
+            poi_init.pose.pose.position.y=0
+            poi_init.pose.pose.position.z=.08
+            poi_init.pose.pose.orientation.w=1
+            poi_init.pose.header.frame_id = REFERENCE_FRAME
+            poi_init.type = String("screwM4")
+            poi_init.age = self._age_threshold
+            poi_init.state.data = "unscrewed"
+            poi_init.id = -1
+            for i in range(5):
+                r = .05
+                dx = r
+                dy = r
+                while(dx**2+dy**2>r**2):
+                    dx = (random.random()-.5)*r
+                    dy = (random.random()-.5)*r
+                p = copy.deepcopy(poi_init)
+                p.pose.pose.position.x+=dx
+                p.pose.pose.position.y+=dy
+                p.id = i
+                self._objects.append(p)
+            poi_init.type = String("screwM3")
+            for i in range(5):
+                r = .2
+                dx = r
+                dy = r
+                while(dx**2+dy**2>r**2):
+                    dx = (random.random()-.5)*r
+                    dy = (random.random()-.5)*r
+                p = copy.deepcopy(poi_init)
+                p.pose.pose.position.x+=dx
+                p.pose.pose.position.y+=dy
+                p.id = i
+                self._objects.append(p)
+
+        if event[0] == "reset_world_kit":
+            self._world_type = "kit"
+            print("resetting to kit")
+            self._objects = []
+
+            for num in range(6):
+                poi_init = POI()
+                poi_init.pose.pose.position.x=.3
+                poi_init.pose.pose.position.y=0+(num-3)*.1
+                poi_init.pose.pose.position.z=.08
+                poi_init.pose.pose.orientation.w=1
+                poi_init.pose.header.frame_id = REFERENCE_FRAME
+                poi_init.type = String("screwM"+str(num))
+                poi_init.age = self._age_threshold
+                poi_init.state.data = "unscrewed"
+                poi_init.id = -1
+                for i in range(5):
+                    p = copy.deepcopy(poi_init)
+                    p.pose.pose.position.x+=i*.01
+                    p.id = i
+                    self._objects.append(p)
         
         if event[0] == "grasped":
             self._grasped_object = event[1]
@@ -194,12 +259,12 @@ class Tracker(object):
             item_type = event[1].split(":")[1].split("_")[0]
             item_id = int(event[1].split(":")[1].split("_")[1])
             if a == "Tighten":
-                for poi in self._init_pois+self._objects:
+                for poi in self._objects:
                     if poi.type.data == item_type and poi.id == item_id:
                         poi.state = String("screwed")
                         return
             if a == "Loosen":
-                for poi in self._init_pois+self._objects:
+                for poi in self._objects:
                     if poi.type.data == item_type and poi.id == item_id:
                         poi.state = String("unscrewed")
                         return
@@ -243,7 +308,14 @@ class Tracker(object):
             return
         self._tf_array = []
         msg = POIArray()
-        for poi in self._init_pois+self._objects:
+        if self._world_type == "screws":
+            for poi in self._init_pois:
+                poi.pose.header.stamp = rospy.Time(0)
+                t = self.get_transform(poi)
+                self._tf_array.append(t)
+                msg.poi_array.append(poi)
+
+        for poi in self._objects:
             if poi.age < self._age_threshold:
                 continue
             poi.pose.header.stamp = rospy.Time(0)

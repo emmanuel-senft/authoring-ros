@@ -88,45 +88,6 @@ class Poi(object):
                 poi.state = String("")
                 self._array.poi_array.append(poi)
 
-        first_drawer = POI()
-        first_drawer.type = String("drawer")
-        first_drawer.pose.pose.position.x = .28
-        first_drawer.pose.pose.position.y = .47
-        first_drawer.pose.pose.position.z = .10+.04
-        first_drawer.pose.header.frame_id = REFERENCE_FRAME
-        q = PyKDL.Rotation.RPY(np.pi/2,0,0).GetQuaternion()
-        first_drawer.pose.pose.orientation.x = q[0]
-        first_drawer.pose.pose.orientation.y = q[1] 
-        first_drawer.pose.pose.orientation.z = q[2] 
-        first_drawer.pose.pose.orientation.w = q[3] 
-        drawer_n = 0
-        for i in range(8):
-            for j in range(3):
-                poi = copy.deepcopy(first_drawer)
-                poi.pose.pose.position.x+=i*.06
-                poi.pose.pose.position.z+=j*.09
-                poi.id = drawer_n
-                drawer_n += 1
-                self._array.poi_array.append(poi)
-        #off_x=-.135
-        #off_y=.485
-        #off_z=-.018
-        #d=.168
-        #for i in range(12):
-        #    poi = copy.deepcopy(poi_init)
-        #    poi.pose.pose.position.x += off_x + d/2*np.cos(i*np.pi/6)
-        #    poi.pose.pose.position.y += off_y + d/2*np.sin(i*np.pi/6)
-        #    poi.pose.pose.position.z += off_z
-        #    poi.id = i
-        #    poi.type = poi.PUSHER
-        #    self._array.poi_array.append(poi)
-
-        #poi = copy.deepcopy(poi_init)
-        #poi.type = poi.SCREW_DRIVER
-        #poi.pose.pose.position.x += .19
-        #poi.pose.pose.position.z += .094
-        #self._array.poi_array.append(poi)
-
         self._pois_pub.publish(self._array)
         if self._virtual:
             self._simulated_objects_pub.publish(self._simulated_objects)
