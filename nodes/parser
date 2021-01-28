@@ -24,6 +24,7 @@ import tf2_ros
 import tf2_geometry_msgs
 import PyKDL
 import types
+from scipy.spatial import ConvexHull
 
 
 REFERENCE_FRAME='panda_link0'
@@ -723,8 +724,16 @@ class Parser(object):
                 action.poses.header.frame_id = REFERENCE_FRAME
                 pose = HybridPose()
                 pose.constraint_frame.w = 1
-                action.poses.poses.append(pose)    
-            elif cmd[1].find(",") == -1:
+                action.poses.poses.append(pose)   
+            elif name == "Move_zone":
+                args = cmd[1].split("-")
+                item_type = args[0]
+                zone_a = self.get_hull_from_pixel([int(coord) for coord in args[1].split("_")])
+                zone_b = self.get_hull_from_pixel([int(coord) for coord in args[2].split("_")])
+                pattern = args[3]
+                item = self.find_item_in_zone(item_type,zone_a)
+                return None 
+            elif cmd[1].find(",") == -1: #Means that it's using pixel coordinate for grasping
                 item_list = cmd[1].split('-')
                 for item in item_list:
                     if item in moved.keys():
@@ -802,6 +811,57 @@ class Parser(object):
 
             actions.append(action)
         return actions
+
+    def find_item_in_zone(self, item_type, zone):
+        for p in self._pois:
+            if p.type.data != item_type:
+                continue
+            if type(zone) == ConvexHull:
+                if self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),zone):
+                    print(p.type.data+str(p.id))
+        return None
+
+    def get_hull_from_pixel(self, coord):
+        [x,y,w,h] = coord
+        p1 = self.get_table_intersection(x,y)
+        p2 = self.get_table_intersection(x+w,y)
+        p3 = self.get_table_intersection(x+w,y+h)
+        p4 = self.get_table_intersection(x,y+h)
+        
+        points = np.array([p1,p2,p3,p4])
+        return ConvexHull(points)
+
+    def get_table_intersection(self,x,y):
+        p = [x,y]
+        p = self._model.rectifyPoint(p)
+        p3d = self._model.projectPixelTo3dRay(p)
+
+        point = Point()
+        point.x=p3d[0]
+        point.y=p3d[1]
+        point.z=p3d[2]
+        #return point
+
+        p = PoseStamped()
+        p.header.frame_id = CAMERA_FRAME
+        p.header.stamp = rospy.Time(0)
+        p.pose.position = point
+        p.pose.orientation.w = 1
+        p = self._tfBuffer.transform(p,REFERENCE_FRAME)
+
+        camera = self._tfBuffer.lookup_transform(REFERENCE_FRAME, CAMERA_FRAME, rospy.Time(0)).transform
+        
+        l = camera.translation.z / (camera.translation.z-p.pose.position.z)
+        x = camera.translation.x + l * (p.pose.position.x-camera.translation.x)
+        y = camera.translation.y + l * (p.pose.position.y-camera.translation.y)
+
+        return (x,y)
+
+    def point_in_hull(self, point, hull, tolerance=1e-12):
+        return all(
+            (np.dot(eq[:-1], point) + eq[-1] <= tolerance)
+            for eq in hull.equations)
+
 
     def get_action_from_name(self, a, name):
         if name == 'Wipe':
