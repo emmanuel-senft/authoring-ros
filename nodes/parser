@@ -86,29 +86,29 @@ class Parser(object):
         l = msg.data.split(";")
         event = l[0]
         
-        if event.startswith("trigger"):
-            #data: "trigger_1;screw;pix_pos:1200-1350_750-950"
-            t = types.SimpleNamespace()
-            t.view_point = PoseStamped()
-            t.id = l[0]
-            t.object = l[1]
-            t.conditions = l[2].split(",")
-            t.behavior = len(self._behaviors)
-            self._triggers = [t]
-        if event == "record":
-            self._behavior_recording = True
-        if event == "stop_record":
-            self._behavior_recording = False
-            if len(self._actions_recorded) != 0:
-                self._event_pub.publish("recorded;"+"behavior_"+str(len(self._behaviors))+";"+";".join(self._actions_recorded))
-                self._behaviors.append(";".join(copy.deepcopy(self._actions_recorded)))
-                self._actions_recorded = []
+        #if event.startswith("trigger"):
+        #    #data: "trigger_1;screw;pix_pos:1200-1350_750-950"
+        #    t = types.SimpleNamespace()
+        #    t.view_point = PoseStamped()
+        #    t.id = l[0]
+        #    t.object = l[1]
+        #    t.conditions = l[2].split(",")
+        #    t.behavior = len(self._behaviors)
+        #    self._triggers = [t]
+        #if event == "record":
+        #    self._behavior_recording = True
+        #if event == "stop_record":
+        #    self._behavior_recording = False
+        #    if len(self._actions_recorded) != 0:
+        #        self._event_pub.publish("recorded;"+"behavior_"+str(len(self._behaviors))+";"+";".join(self._actions_recorded))
+        #        self._behaviors.append(";".join(copy.deepcopy(self._actions_recorded)))
+        #        self._actions_recorded = []
 
         if event == "motion_finished" or event == "wait":
             self.publish_pois()
 
-        if event == "action_finished" and self._behavior_recording:
-            self._actions_recorded.append(l[1])
+        #if event == "action_finished" and self._behavior_recording:
+        #    self._actions_recorded.append(l[1])
         
         if msg.data == "start_exec":
             self._moving = True
@@ -309,6 +309,19 @@ class Parser(object):
                 self._saved_view.append(self._joints)
             else:
                 self._saved_view[n] = self._joints
+            return
+
+        if command_type.startswith("trigger"):
+            #data: "trigger_1;screw;pix_pos:1200-1350_750-950"
+            t = types.SimpleNamespace()
+            t.view_point = PoseStamped()
+            t.id = list_actions[0]
+            #t.object = list_actions[1]
+
+            t.conditions = self.parse_conditions(list_actions[1].split(","))
+            
+            t.behavior = list_actions[2]
+            self._triggers.append(t)
             return
 
         if command_type == 'load_view':
@@ -653,42 +666,20 @@ class Parser(object):
         #self._triggers = [t]
 
         for t in self._triggers:
-            if t.behavior >= len(self._behaviors):
-                continue
             print(t)
             for p in self._pois:
-                if t.object != p.type.data:
-                    continue
                 for condition in t.conditions:
-                    condition_type = condition.split(":")[0]
-                    condition_arguments = condition.split(":")[1]
-                    if condition_type == "pix_pose":
-                        x_cond = condition_arguments.split("_")[0]
-                        y_cond = condition_arguments.split("_")[1]
-                        x_low = int(x_cond.split("-")[0])
-                        x_high = int(x_cond.split("-")[1])
-                        y_low = int(y_cond.split("-")[0])
-                        y_high = int(y_cond.split("-")[1])
-                        pixel = self.get_pixel_from_pose(p.pose)
-                        
-                        if pixel is None:
-                            break
-
-                        if pixel[0] < x_high and pixel[0]>x_low and pixel[1] < y_high and pixel[1]>y_low:
-                            continue
-                        else:
-                            break
-                    if condition_type == "state":
-                        if condition_arguments in p.state.data:
-                            continue
-                        else:
-                            break
+                    if self.test_condition(condition, p):
+                        continue
+                    else:
+                        break
                 else:
-                    behavior = self._behaviors[t.behavior]
-                    behavior = self.generalize_behavior(behavior, t.object, self.get_name(p).replace(":","_")).split(";")
-                    if behavior is None:
-                        print("error")
-                    actions = self.parse_actions(behavior)  
+                    behavior = t.behavior
+                    if "MoveDiscrete" in t.behavior or "Tighten" in t.behavior or "Loosen" in t.behavior:
+                        behavior=behavior.replace(p.type.data,p.type.data+"_"+str(p.id))
+                    actions = self.parse_actions(behavior.split(",")) 
+                    if actions is None:
+                        return 
                     cmd = Command()
                     cmd.type = cmd.EXEC
                     for action in actions:
@@ -696,6 +687,14 @@ class Parser(object):
                     self._command_pub.publish(cmd)
                     return
     
+    def test_condition(self, condition, p):
+        if condition.item != p.type.data:
+            return
+        if condition.test == "IsIn":
+            return self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),condition.zone)
+        if condition.test == "HasState":
+            return condition.state in p.state.data
+
     def generalize_behavior(self, behavior, object_type, target):
         actions = behavior.split(";")
         found = False
@@ -707,6 +706,21 @@ class Parser(object):
                         print(target)
                         return behavior.replace(item,target)
         return None 
+    def parse_conditions(self, list_conditions):
+        #screwM5-IsNotIn-200_400_500_500
+        to_return = []
+        for condition in list_conditions:
+            c = types.SimpleNamespace()
+            args = condition.split("-")
+            c.item = args[0]
+            c.test = args[1]
+            if c.test == "IsIn" or c.test == "IsNotIn":
+                zone = self.get_hull_from_pixel([int(coord) for coord in args[2].split("_")])
+                c.zone = zone
+            if c.test == "HasState":
+                c.state = args[2]
+            to_return.append(c)
+        return to_return
 
     def parse_actions(self, list_actions):
         print(list_actions)
@@ -765,7 +779,7 @@ class Parser(object):
                         t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item, rospy.Time(0)) 
                         pose = self.get_pose_from_trans(t)
                         action.poses.poses.append(pose)
-                if cmd[0] == "Move":
+                if cmd[0] == "MoveDiscrete":
                     action.item = String(cmd[1])
                     moved[item_list[0]]=action.poses.poses[-1]
                     moved[item_list[0]].pose.position.z+=.015
@@ -921,7 +935,7 @@ class Parser(object):
             return a.PICK
         if name == 'Place':
             return a.PLACE 
-        if name == 'Move' or name == 'MoveZone':
+        if name == 'MoveDiscrete' or name == 'MoveZone':
             return a.MOVE_OBJECT
         if name == 'Screw':
             return a.SCREW
