@@ -725,15 +725,38 @@ class Parser(object):
                 pose = HybridPose()
                 pose.constraint_frame.w = 1
                 action.poses.poses.append(pose)   
-            elif name == "Move_zone":
+            elif name == "MoveZone":
                 args = cmd[1].split("-")
                 item_type = args[0]
                 zone_a = self.get_hull_from_pixel([int(coord) for coord in args[1].split("_")])
                 zone_b = self.get_hull_from_pixel([int(coord) for coord in args[2].split("_")])
                 pattern = args[3]
                 item = self.find_item_in_zone(item_type,zone_a)
-                return None 
-            elif cmd[1].find(",") == -1: #Means that it's using pixel coordinate for grasping
+                if item is None:
+                    print("no item found")
+                    return None
+                destination = self.find_free_space_in_zone(item_type,zone_b, pattern)
+                if destination is None:
+                    print("full destination")
+                    return None
+                
+                item_str = item.type.data+"_"+str(item.id)
+                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_str, rospy.Time(0)) 
+                start = self.get_pose_from_trans(t)
+
+                goal = self.get_hybrid_pose(PoseStamped())
+                goal.pose.orientation.w = 1
+                goal.header.frame_id = REFERENCE_FRAME
+                goal.pose.position.x = destination[0]
+                goal.pose.position.y = destination[1]
+
+                action.poses.poses.append(start)
+                action.poses.poses.append(goal)
+                action.type = action.MOVE_OBJECT
+                action.pose = action.poses.poses[0]
+                action.item.data = item_str
+
+            elif cmd[1].find(",") == -1: 
                 item_list = cmd[1].split('-')
                 for item in item_list:
                     if item in moved.keys():
@@ -818,9 +841,25 @@ class Parser(object):
                 continue
             if type(zone) == ConvexHull:
                 if self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),zone):
-                    print(p.type.data+str(p.id))
+                    return p
         return None
-
+    
+    def find_free_space_in_zone(self,item_type,zone, pattern):
+        cols = int(pattern.split("x")[0])
+        rows = int(pattern.split("x")[1])
+        points = zone.points
+        left = np.linspace(points[0], points[3], rows+1)
+        right = np.linspace(points[1], points[2], rows+1)
+        bot = np.linspace(left[0], right[0], cols+1)
+        for i in range(rows):
+            top = bot
+            bot = np.linspace(left[i+1], right[i+1], cols+1)
+            for j in range(cols):
+                hull = ConvexHull([top[j],top[j+1],bot[j+1],bot[j]])
+                if self.find_item_in_zone(item_type, hull) is None:
+                    return hull.points.mean(0)
+        return None
+        
     def get_hull_from_pixel(self, coord):
         [x,y,w,h] = coord
         p1 = self.get_table_intersection(x,y)
@@ -882,7 +921,7 @@ class Parser(object):
             return a.PICK
         if name == 'Place':
             return a.PLACE 
-        if name == 'Move':
+        if name == 'Move' or name == 'MoveZone':
             return a.MOVE_OBJECT
         if name == 'Screw':
             return a.SCREW
