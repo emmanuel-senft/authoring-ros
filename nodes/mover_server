@@ -426,6 +426,9 @@ class AuthoringAction(object):
         if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold):
             self._reached_position = True
             return True
+        if action.sim.data and linear[2]<0:
+            self._reached_position = True
+            return True
         linear[2] = 0
         force_threshold = self._push_force*.7
         if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold) and self._biased_wrench.force.z < force_threshold:

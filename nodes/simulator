@@ -38,7 +38,7 @@ class Simulator(object):
         self._sim = False
         self._init = False
         self._finger_val = .035
-        self._current_joint = [0.0,-0.4,0.0,-2.0,0.0,1.6,0.8,self._finger_val,self._finger_val]
+        self._current_joint = [0., -0.34, 0., -1.66, 0., 1.32, 0.8,self._finger_val,self._finger_val]
         self._starting_joint = self._current_joint
         self._starting_time = rospy.Time.now()
         self._pre_sim_joints = copy.deepcopy(self._current_joint)
