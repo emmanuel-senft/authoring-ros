@@ -88,8 +88,7 @@ if __name__ == '__main__':
 
     myviz = MyViz()
     myviz.resize(2000,2000)
-    myviz.showMinimized()
-    
+    myviz.show()
     #Allow python to capture keyboard interrup
     timer = QTimer()
     timer.timeout.connect(lambda: None)
