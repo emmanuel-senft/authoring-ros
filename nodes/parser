@@ -645,7 +645,7 @@ class Parser(object):
             self._marker_pub.publish(marker)
             return
         
-        list_actions.pop(0)
+        list_actions = list_actions[1].split(",")
         #for action in list_actions:
         #    cmd = action.split(":")
         #    if len(cmd)>1 and cmd[1].find(",") != -1:
