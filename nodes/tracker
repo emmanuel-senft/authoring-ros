@@ -256,14 +256,16 @@ class Tracker(object):
             a = event[1].split(":")[0]
             if a == "Reset":
                 return
-            item_type = event[1].split(":")[1].split("_")[0]
-            item_id = int(event[1].split(":")[1].split("_")[1])
             if a == "Tighten":
+                item_type = event[1].split(":")[1].split("_")[0]
+                item_id = int(event[1].split(":")[1].split("_")[1])
                 for poi in self._objects:
                     if poi.type.data == item_type and poi.id == item_id:
                         poi.state = String("screwed")
                         return
             if a == "Loosen":
+                item_type = event[1].split(":")[1].split("_")[0]
+                item_id = int(event[1].split(":")[1].split("_")[1])
                 for poi in self._objects:
                     if poi.type.data == item_type and poi.id == item_id:
                         poi.state = String("unscrewed")
