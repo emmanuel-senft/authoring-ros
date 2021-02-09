@@ -32,6 +32,23 @@ CAMERA_FRAME='internal_rgb_camera_link'
 
 class Parser(object):
     def __init__(self):
+
+        self._joints = None
+        self._camera_t = None
+        self._freq = 1
+        self._saved_view = []
+        self._depth = None
+        self._numpy_depth = None
+        self._new_depth = True
+        self._behavior_recording = False
+        self._behaviors = []#["Move:screw_1-box_0;Reset"]
+        self._actions_recorded = []
+        self._triggers = []
+        self._moving = False
+        self._zones = {}
+        self._pause_autonomy = False
+
+
         self._tfBuffer = tf2_ros.Buffer()
         self._tl = tf2_ros.TransformListener(self._tfBuffer)
         rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
@@ -61,19 +78,6 @@ class Parser(object):
         else:
             self._joint_sub = rospy.Subscriber("/panda/joint_states", JointState, self.on_joints)
         self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self.on_depth)
-        
-        self._joints = None
-        self._camera_t = None
-        self._freq = 1
-        self._saved_view = []
-        self._depth = None
-        self._numpy_depth = None
-        self._new_depth = True
-        self._behavior_recording = False
-        self._behaviors = []#["Move:screw_1-box_0;Reset"]
-        self._actions_recorded = []
-        self._triggers = []
-        self._moving = False
     
     def on_depth(self,msg):
         self._depth = msg
@@ -115,6 +119,12 @@ class Parser(object):
         
         if msg.data == "motion_finished":
             self._moving = False
+        
+        if msg.data == "pause_autonomy":
+            self._pause_autonomy = True
+        
+        if msg.data == "resume_autonomy":
+            self._pause_autonomy = False
 
     def on_poi(self, msg):
         self._pois = []
@@ -655,7 +665,7 @@ class Parser(object):
             self._command_pub.publish(cmd)
 
     def check_triggers(self):
-        if self._moving:
+        if self._moving or self._pause_autonomy:
             return
 
         #t = types.SimpleNamespace()
