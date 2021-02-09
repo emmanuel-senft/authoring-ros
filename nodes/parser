@@ -150,12 +150,6 @@ class Parser(object):
                 done = True
             except:
                 pass
-        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'panda_gripper', rospy.Time(0)).transform
-        p = t.translation
-        q = t.rotation
-        e = tf.transformations.euler_from_quaternion([q.x,q.y,q.z,q.w])
-        e = [v*180/np.pi for v in e]
-        self._gui_pub.publish("panda_pose;"+str(round(p.x,3))+","+str(round(p.y,3))+","+str(round(p.z,3))+","+str(round(e[0],1))+","+str(round(e[1],1))+","+str(round(e[2],1)))
 
     def get_vect(self, v):
         toreturn = []
@@ -733,7 +727,6 @@ class Parser(object):
         return to_return
 
     def parse_actions(self, list_actions):
-        print(list_actions)
         actions = []
         moved = {}
         for action in list_actions:

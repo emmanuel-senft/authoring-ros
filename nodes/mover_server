@@ -384,9 +384,6 @@ class AuthoringAction(object):
         pose.wrench.force.y = 0
         pose.wrench.force.z = force
         pose.constraint_frame.w = 1
-        print("Force")
-        print(self._wrench.force.z)
-        print(force_contact)
         if self._biased_wrench.force.z < force_contact:
             if self._z_plane is None:
                 self._z_plane = t.transform.translation.z

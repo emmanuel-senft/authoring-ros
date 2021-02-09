@@ -707,7 +707,6 @@ class Planner(object):
 
         for action in self._plan[starting:]:
             print("At action "+self.get_type(action))
-            print(action)
             if action.finished.data:
                 event = "action_finished;"+self.get_type(action)
                 if self.get_type(action) != "Reset":

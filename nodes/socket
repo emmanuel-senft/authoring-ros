@@ -71,7 +71,6 @@ class Test(object):
         jpg_as_text = base64.b64encode(msg.data)
 
         self._new_img = True
-        print(len(self._img_queue))
         if len(self._img_queue)>1:
             self._img_queue.pop()
         self._img_queue.append(jpg_as_text)
