@@ -144,6 +144,16 @@ class Parser(object):
                         continue
                     name = self.get_name(p)
                     self._poi_gui+=name+":"+pixel+":"+p.state.data+";"
+                
+                for name, hull  in self._zones.items():
+                    self._poi_gui+="zone:"+name+":"
+                    for point in hull.points:
+                        p = Point(point[0],point[1],0)
+                        pixels = self.get_pixel_from_point(p)
+                        self._poi_gui+=pixels + ":" 
+                    self._poi_gui = self._poi_gui[:-1]+";"
+
+
 
                 self._poi_gui = self._poi_gui[:-1]
                 self._gui_pub.publish(self._poi_gui)
@@ -359,7 +369,22 @@ class Parser(object):
         #        cmd.core_action.append(action)
         #        self._command_pub.publish(cmd)
         #        return
-                
+
+        if command_type == "new_zone" or command_type == "update_zone":
+            name = list_actions[1].split(":")[0]
+            hull = self.get_hull_from_pixel(list_actions[1].split(":")[1])
+            self._zones[name]=hull
+            print(command_type)
+            print(self._zones)
+            return
+        
+        if command_type == "delete_zone":
+            try:
+                self._zones.pop(list_actions[1])
+            except:
+                print("no zone named "+list_actions[1])
+            return
+
         if command_type == 'panda_goal':
             pose = [float(v) for v in list_actions[1].split(",")]
             r = [p*np.pi/180. for p in pose[3:]]
@@ -680,7 +705,7 @@ class Parser(object):
                 else:
                     behavior = t.behavior
                     if "MoveDiscrete" in t.behavior or "Tighten" in t.behavior or "Loosen" in t.behavior:
-                        behavior=behavior.replace(p.type.data,p.type.data+"_"+str(p.id))
+                        behavior=behavior.replace(p.type.data,self.get_poi_name(p))
                     actions = self.parse_actions(behavior.split(",")) 
                     if actions is None:
                         return 
@@ -695,7 +720,7 @@ class Parser(object):
         if condition.item != p.type.data:
             return
         if condition.test == "IsIn":
-            return self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),condition.zone)
+            return self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),self.get_zone(condition.zone))
         if condition.test == "HasState":
             return condition.state in p.state.data
 
@@ -719,7 +744,9 @@ class Parser(object):
             c.item = args[0]
             c.test = args[1]
             if c.test == "IsIn" or c.test == "IsNotIn":
-                zone = self.get_hull_from_pixel([int(coord) for coord in args[2].split("_")])
+                zone = args[2]
+                if len(zone.split("_")) == 4:
+                    zone = self.get_hull_from_pixel(zone)
                 c.zone = zone
             if c.test == "HasState":
                 c.state = args[2]
@@ -745,19 +772,21 @@ class Parser(object):
             elif name == "MoveZone":
                 args = cmd[1].split("-")
                 item_type = args[0]
-                zone_a = self.get_hull_from_pixel([int(coord) for coord in args[1].split("_")])
-                zone_b = self.get_hull_from_pixel([int(coord) for coord in args[2].split("_")])
+                zone_a = self.get_zone(args[1])
+                zone_b = self.get_zone(args[2])
+                if zone_a is None or zone_b is None:
+                    return
                 pattern = args[3]
-                item = self.find_item_in_zone(item_type,zone_a)
+                item = self.find_item_in_zone(item_type,zone_a,moved)
                 if item is None:
                     print("no item found")
                     return None
-                destination = self.find_free_space_in_zone(item_type,zone_b, pattern)
+                destination = self.find_free_space_in_zone(item_type,zone_b, pattern,moved)
                 if destination is None:
                     print("full destination")
-                    return None
+                    continue
                 
-                item_str = item.type.data+"_"+str(item.id)
+                item_str = self.get_poi_name(item)
                 t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_str, rospy.Time(0)) 
                 start = self.get_pose_from_trans(t)
 
@@ -772,6 +801,7 @@ class Parser(object):
                 action.type = action.MOVE_OBJECT
                 action.pose = action.poses.poses[0]
                 action.item.data = item_str
+                moved[item_str]=action.poses.poses[-1]
 
             elif cmd[1].find(",") == -1: 
                 item_list = cmd[1].split('-')
@@ -852,16 +882,37 @@ class Parser(object):
             actions.append(action)
         return actions
 
-    def find_item_in_zone(self, item_type, zone):
+    def get_zone(self, id):
+        zone = None
+        if len(id.split("_")) == 4:
+            zone = self.get_hull_from_pixel(id)
+        else:
+            try:
+                zone = self._zones[id]
+            except:
+                print("no zone named "+id)
+        return zone
+
+    def find_item_in_zone(self, item_type, zone, moved = {}):
         for p in self._pois:
             if p.type.data != item_type:
                 continue
+            if type(zone) == str:
+                try:
+                    zone = self._zones[zone]
+                except:
+                    return None
+
+            position = p.pose.pose.position
+            if self.get_poi_name(p) in moved.keys():
+                position = moved[self.get_poi_name(p)].pose.position
+
             if type(zone) == ConvexHull:
-                if self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),zone):
+                if self.point_in_hull((position.x,position.y),zone):
                     return p
         return None
     
-    def find_free_space_in_zone(self,item_type,zone, pattern):
+    def find_free_space_in_zone(self,item_type,zone, pattern, moved = {}):
         cols = int(pattern.split("x")[0])
         rows = int(pattern.split("x")[1])
         points = zone.points
@@ -873,12 +924,12 @@ class Parser(object):
             bot = np.linspace(left[i+1], right[i+1], cols+1)
             for j in range(cols):
                 hull = ConvexHull([top[j],top[j+1],bot[j+1],bot[j]])
-                if self.find_item_in_zone(item_type, hull) is None:
+                if self.find_item_in_zone(item_type, hull, moved) is None:
                     return hull.points.mean(0)
         return None
         
     def get_hull_from_pixel(self, coord):
-        [x,y,w,h] = coord
+        [x,y,w,h] = [int(c) for c in coord.split("_")]
         p1 = self.get_table_intersection(x,y)
         p2 = self.get_table_intersection(x+w,y)
         p3 = self.get_table_intersection(x+w,y+h)
@@ -918,6 +969,8 @@ class Parser(object):
             (np.dot(eq[:-1], point) + eq[-1] <= tolerance)
             for eq in hull.equations)
 
+    def get_poi_name(self,p):
+        return p.type.data+"_"+str(p.id)
 
     def get_action_from_name(self, a, name):
         if name == 'Wipe':
