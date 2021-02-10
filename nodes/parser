@@ -722,7 +722,7 @@ class Parser(object):
         if condition.test == "IsIn":
             return self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),self.get_zone(condition.zone))
         if condition.test == "HasState":
-            return condition.state in p.state.data
+            return condition.state in p.state.data.split(',')
 
     def generalize_behavior(self, behavior, object_type, target):
         actions = behavior.split(";")
