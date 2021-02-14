@@ -376,11 +376,16 @@ class Parser(object):
             self._zones[name]=hull
             print(command_type)
             print(self._zones)
+            if command_type == "new_zone":
+                self._event_pub.publish("zone_created;"+name)
+            else:
+                self._event_pub.publish("zone_updated;"+name)
             return
         
         if command_type == "delete_zone":
             try:
                 self._zones.pop(list_actions[1])
+                self._event_pub.publish("zone_deleted;"+list_actions[1])
             except:
                 print("no zone named "+list_actions[1])
             return
