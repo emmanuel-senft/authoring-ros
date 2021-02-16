@@ -43,7 +43,7 @@ class Parser(object):
         self._behavior_recording = False
         self._behaviors = []#["Move:screw_1-box_0;Reset"]
         self._actions_recorded = []
-        self._triggers = []
+        self._triggers = {}
         self._moving = False
         self._zones = {}
         self._pause_autonomy = False
@@ -327,15 +327,22 @@ class Parser(object):
 
         if command_type.startswith("trigger"):
             #data: "trigger_1;screw;pix_pos:1200-1350_750-950"
+            name = list_actions[0]
             t = types.SimpleNamespace()
             t.view_point = PoseStamped()
-            t.id = list_actions[0]
             #t.object = list_actions[1]
 
             t.conditions = self.parse_conditions(list_actions[1].split(","))
             
             t.behavior = list_actions[2]
-            self._triggers.append(t)
+            self._triggers[name] = t
+            return
+
+        if command_type == "delete_trigger":
+            try:
+                self._triggers.pop(list_actions[1])
+            except:
+                print("No trigger named "+list_actions[1])
             return
 
         if command_type == 'load_view':
@@ -699,7 +706,8 @@ class Parser(object):
         #t.behavior = 0
         #self._triggers = [t]
 
-        for t in self._triggers:
+        for name in self._triggers:
+            t= self._triggers[name]
             print(t)
             for p in self._pois:
                 for condition in t.conditions:
