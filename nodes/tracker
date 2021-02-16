@@ -168,7 +168,7 @@ class Tracker(object):
             self._objects = []
             for poi in self._init_sim:
                 self._objects.append(copy.deepcopy(poi))
-                break
+                
         if event[0] == "reset_world_sort":
             self._world_type = "sort"
             print("resetting to sort")
