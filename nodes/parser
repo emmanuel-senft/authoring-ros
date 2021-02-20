@@ -705,35 +705,55 @@ class Parser(object):
         #t.conditions = "pix_pose:1200-1350_750-950"
         #t.behavior = 0
         #self._triggers = [t]
-
+        to_trigger = []
         for name in self._triggers:
-            t= self._triggers[name]
-            print(t)
-            for p in self._pois:
-                for condition in t.conditions:
-                    if self.test_condition(condition, p):
-                        continue
-                    else:
-                        break
+            t = self._triggers[name]
+            t.candidates = self.get_candidates(t.conditions)
+            if len(t.candidates) > 0:
+                to_trigger.append(t)
+        if len(to_trigger)>1:
+            #Resolve conflicts
+            return
+        if len(to_trigger) == 1:    
+            t = to_trigger[0]
+            behavior = t.behavior
+            p = t.candidates[0]
+            if "MoveDiscrete" in t.behavior or "Tighten" in t.behavior or "Loosen" in t.behavior:
+                behavior=behavior.replace(p.type.data,self.get_poi_name(p))
+            actions = self.parse_actions(behavior.split(",")) 
+            if actions is None:
+                return 
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            for action in actions:
+                cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
+
+    def get_candidates(self, conditions):
+        candidates = self._pois
+        for condition in conditions:
+            next_candidates = []
+            for p in candidates:
+                if condition.item != p.type.data:
+                    continue
+                if self.test_condition(condition, p):
+                    next_candidates.append(p)
                 else:
-                    behavior = t.behavior
-                    if "MoveDiscrete" in t.behavior or "Tighten" in t.behavior or "Loosen" in t.behavior:
-                        behavior=behavior.replace(p.type.data,self.get_poi_name(p))
-                    actions = self.parse_actions(behavior.split(",")) 
-                    if actions is None:
-                        return 
-                    cmd = Command()
-                    cmd.type = cmd.EXEC
-                    for action in actions:
-                        cmd.core_action.append(action)
-                    self._command_pub.publish(cmd)
-                    return
+                    if condition.test == "IsNotIn":
+                        return []
+            
+            if condition.test != "IsNotIn":
+                candidates = next_candidates
+        return candidates
     
     def test_condition(self, condition, p):
         if condition.item != p.type.data:
-            return
+            return False
         if condition.test == "IsIn":
             return self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),self.get_zone(condition.zone))
+        if condition.test == "IsNotIn":
+            return not self.point_in_hull((p.pose.pose.position.x,p.pose.pose.position.y),self.get_zone(condition.zone))
         if condition.test == "HasState":
             return condition.state in p.state.data.split(',')
 
@@ -794,10 +814,28 @@ class Parser(object):
                 if item is None:
                     print("no item found")
                     return None
-                destination = self.find_free_space_in_zone(item_type,zone_b, pattern,moved)
-                if destination is None:
-                    print("full destination")
+                if pattern == "holder":
+                    dest = self.find_item_in_zone(pattern,zone_b,moved)
+                    if dest is None:
+                        continue
+                    item_name = self.get_poi_name(item)
+                    action.item = String(item_name)
+                    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_name, rospy.Time(0)) 
+                    pose = self.get_pose_from_trans(t)
+                    action.pose = pose
+                    action.poses.poses.append(pose)
+                    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, self.get_poi_name(dest), rospy.Time(0)) 
+                    pose = self.get_pose_from_trans(t)
+                    action.poses.poses.append(pose)
+                    action.type = action.MOVE_OBJECT
+                    moved[item_name]=action.poses.poses[-1]
+                    actions.append(action)
                     continue
+                else:
+                    destination = self.find_free_space_in_zone(item_type,zone_b, pattern,moved)
+                    if destination is None:
+                        print("full destination")
+                        continue
                 
                 item_str = self.get_poi_name(item)
                 t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_str, rospy.Time(0)) 
@@ -925,7 +963,7 @@ class Parser(object):
                     return p
         return None
     
-    def find_free_space_in_zone(self,item_type,zone, pattern, moved = {}):
+    def find_free_space_in_zone(self,item_type,zone, pattern, moved = {}):          
         cols = int(pattern.split("x")[0])
         rows = int(pattern.split("x")[1])
         points = zone.points
