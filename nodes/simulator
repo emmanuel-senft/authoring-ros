@@ -60,6 +60,8 @@ class Simulator(object):
         self._virtual = rospy.get_param('~only_virtual')
         self._cam_control = False
 
+        self._pause = False
+
     def on_pose(self, msg):
         goal = msg.pose
         ee_frame = "sim_panda_gripper"
@@ -126,7 +128,7 @@ class Simulator(object):
             r.sleep()
 
     def move(self):
-        if self._sim or not self._init:
+        if (self._sim or not self._init) and not self._pause:
             if self._desired_joint_pose is not None:
                 progress = min(1,(rospy.Time.now() -self._starting_time).to_sec()/(self._desired_joint_pose.header.stamp - self._starting_time).to_sec())
                 
@@ -176,6 +178,10 @@ class Simulator(object):
             self._cam_control = True
         if cmd == "stop_cam":
             self._cam_control = False
+        if cmd == "pause":
+            self._pause = True
+        if cmd == "play":
+            self._pause = False
     
     def on_command(self, msg):
         if msg.data == "grasp":

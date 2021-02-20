@@ -423,7 +423,7 @@ class AuthoringAction(object):
         if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold):
             self._reached_position = True
             return True
-        if action.sim.data and linear[2]<0:
+        if (action.sim.data or self._virtual) and linear[2]<0:
             self._reached_position = True
             return True
         linear[2] = 0
