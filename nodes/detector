@@ -1,0 +1,223 @@
+#!/usr/bin/env python
+import numpy as np
+import math
+import rospy
+import signal
+import sys
+
+from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
+from cv_bridge import CvBridge, CvBridgeError
+import image_geometry
+from geometry_msgs.msg import TransformStamped, PoseStamped, Point, Pose, PoseArray, Quaternion, Twist, Vector3
+from std_msgs.msg import String
+
+from authoring_msgs.msg import POI,POIArray
+import tf
+import tf2_ros
+import tf2_geometry_msgs
+import rospkg
+import ros_numpy
+
+from sklearn.decomposition import PCA
+
+import torch, torchvision
+import torch
+assert torch.__version__.startswith("1.7")
+
+# Some basic setup:
+# Setup detectron2 logger
+import detectron2
+#from detectron2.utils.logger import setup_logger
+#setup_logger()
+
+# import some common libraries
+import numpy as np
+import os, json, cv2, random
+import cv2
+import PyKDL
+
+# import some common detectron2 utilities
+from detectron2 import model_zoo
+from detectron2.engine import DefaultPredictor
+from detectron2.config import get_cfg
+from detectron2.utils.visualizer import ColorMode, Visualizer
+from detectron2.data import MetadataCatalog, DatasetCatalog
+from detectron2.data.datasets import register_coco_instances
+
+REFERENCE_FRAME='panda_link0'
+CAMERA_FRAME='internal_rgb_camera_link'
+
+class Detector(object):
+    def __init__(self):
+        self._tfBuffer = tf2_ros.Buffer()
+        self._tl = tf2_ros.TransformListener(self._tfBuffer)
+        self._br = tf2_ros.TransformBroadcaster()
+        rospack = rospkg.RosPack()
+        register_coco_instances("dataset", {}, rospack.get_path('authoring')+"/model/annotations.json", rospack.get_path('authoring')+"/model/")
+        self._metadata = MetadataCatalog.get("dataset")
+        
+        self._bridge = CvBridge()
+        self._cfg = get_cfg()
+        self._cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
+        self._cfg.DATALOADER.NUM_WORKERS = 2
+
+        self._cfg.MODEL.WEIGHTS = rospack.get_path('authoring')+"/model/model_final.pth"  # path to the model we just trained
+        self._cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.4   # set a custom testing threshold
+        self._cfg.MODEL.ROI_HEADS.NUM_CLASSES = 9
+        self._predictor = DefaultPredictor(self._cfg)
+        self._classes = ["bolt","box","connector2","connector3","fastener","holder_assembled","holder_empty","holder_full","top"]
+
+        #classes = [m['name'] for m in config.get('meshes')]
+#
+        #self.MetaData = MetadataCatalog.get(config.get("model.metadata_catalog")).set(thing_classes = classes)
+
+        self._obj_publisher = rospy.Publisher("/detector/objects",POIArray,queue_size=1)
+
+        self._depth = None
+        self._model = image_geometry.PinholeCameraModel()
+        self._model.fromCameraInfo(rospy.wait_for_message("/rgb/camera_info", CameraInfo))
+
+
+        self._img_sub = rospy.Subscriber("/rgb/image_raw",Image, self.on_image)
+        self._depth_sub = rospy.Subscriber("depth_to_rgb/image_raw", Image, self.on_depth)
+        
+    def on_depth(self, msg):
+        self._depth = ros_numpy.numpify(msg)
+
+
+    def on_image(self,msg):
+        try:
+            # Convert your ROS Image message to OpenCV2
+            cv2_img = self._bridge.imgmsg_to_cv2(msg, "bgr8")
+        except CvBridgeError as e:
+            print(e)
+        else:
+            outputs = self._predictor(cv2_img) 
+            instances = outputs['instances'].to('cpu')
+            centers = np.array([[(v[0]+v[2])/2,(v[1]+v[3])/2] for v in instances.pred_boxes.tensor],dtype="int")
+            names = [self._classes[i] for i in instances.pred_classes]
+            masks = instances.pred_masks
+            array = POIArray()
+            for name,center,mask in zip(names,centers,masks):
+                p = self.get_poi(name,center,mask)
+                array.poi_array.append(p)
+                #self.publish_point(centers[i],name+"_"+str(i))
+            self._obj_publisher.publish(array)
+
+    def get_poi(self, name, center,mask):
+        p = self.get_pose_from_pixel(center[0],center[1])
+        if p is None:
+            p = PoseStamped()
+            p.header.frame_id = REFERENCE_FRAME
+            p.header.stamp = rospy.Time(0)
+            [p.pose.position.x,p.pose.position.y] = self.get_table_intersection(center[0],center[1])
+        else:
+            p = self._tfBuffer.transform(p,REFERENCE_FRAME)
+        if not name.startswith("holder") and name != "top":
+            pca=PCA(n_components=1)
+            (x,y)=np.where(mask)
+            X = [[u,v] for u,v in zip(x,y)]
+            pca.fit(X)
+            theta = np.arctan2(pca.components_[0,0],pca.components_[0,1])+np.pi/2
+            p.pose.position.z += .02
+            if theta < -np.pi/2:
+                theta+=np.pi
+            if theta > np.pi/2 and theta < 3*np.pi/2:
+                theta += np.pi
+        else:
+            theta = 0
+        q = PyKDL.Rotation.RPY(0,0,theta).GetQuaternion()
+
+        p.pose.orientation.x=q[0]
+        p.pose.orientation.y=q[1]
+        p.pose.orientation.z=q[2]
+        p.pose.orientation.w=q[3]
+
+        poi = POI()
+        poi.pose = p
+        l = name.split("_")
+        poi.type = String(l[0])
+        if len(l)>1:
+            poi.state = String(l[1])
+        return poi
+        
+    def publish_point(self, center, name):
+        p = self.get_pose_from_pixel(center[0],center[1])
+        if p is None:
+            p = PoseStamped()
+            p.header.frame_id = REFERENCE_FRAME
+            p.header.stamp = rospy.Time(0)
+            [p.pose.position.x,p.pose.position.y] = self.get_table_intersection(center[0],center[1])
+            p.pose.orientation.w = 1
+        t = TransformStamped()
+        t.header = p.header
+        t.header.stamp = rospy.Time.now()
+        t.child_frame_id = name
+        t.transform.translation = p.pose.position
+        t.transform.rotation = p.pose.orientation
+        self._br.sendTransform(t)
+
+    def get_table_intersection(self,x,y):
+        p = [x,y]
+        p = self._model.rectifyPoint(p)
+        p3d = self._model.projectPixelTo3dRay(p)
+
+        point = Point()
+        point.x=p3d[0]
+        point.y=p3d[1]
+        point.z=p3d[2]
+        #return point
+
+        p = PoseStamped()
+        p.header.frame_id = CAMERA_FRAME
+        p.header.stamp = rospy.Time(0)
+        p.pose.position = point
+        p.pose.orientation.w = 1
+        p = self._tfBuffer.transform(p,REFERENCE_FRAME)
+
+        camera = self._tfBuffer.lookup_transform(REFERENCE_FRAME, CAMERA_FRAME, rospy.Time(0)).transform
+        
+        l = camera.translation.z / (camera.translation.z-p.pose.position.z)
+        x = camera.translation.x + l * (p.pose.position.x-camera.translation.x)
+        y = camera.translation.y + l * (p.pose.position.y-camera.translation.y)
+
+        return (x,y)
+
+    def get_xyz_from_pixel(self,x,y,d):
+        p = [x,y]
+        p = self._model.rectifyPoint(p)
+        p3d = self._model.projectPixelTo3dRay(p)
+        point = Point()
+        point.x=d/p3d[2]*p3d[0]
+        point.y=d/p3d[2]*p3d[1]
+        point.z=d/p3d[2]*p3d[2]
+        return point
+
+    def get_pose_from_pixel(self,x,y):
+        if self._depth is None: 
+            return None
+        d = self._depth[y,x]
+        if d == 0.0:
+            print("bad depth")
+            #self._gui_pub.publish(String("bad_depth"))
+            return None
+        point = self.get_xyz_from_pixel(x,y,d)
+        p = PoseStamped()
+        p.header.frame_id = CAMERA_FRAME
+        p.header.stamp = rospy.Time(0)
+        p.pose.position = point
+        p.pose.orientation.w = 1
+        return p
+
+    def run(self):
+        rospy.spin()
+ 
+ 
+    def signal_handler(self, signal, frame):
+        sys.exit(0)
+
+if __name__ == "__main__":
+    rospy.init_node("detector")
+    detector = Detector()
+    signal.signal(signal.SIGINT, detector.signal_handler)
+    detector.run()

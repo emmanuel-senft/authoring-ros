@@ -26,7 +26,6 @@ class Tracker(object):
         rospy.sleep(0.5) # sleep a bit to make sure the TF cache is filled
 
         self._br = tf2_ros.TransformBroadcaster()
-        rospy.sleep(.5)
 
         self._poi_pub = rospy.Publisher("/world_state/pois", POIArray, queue_size=1, latch=True)
         self._marker_pub = rospy.Publisher("/viz/meshes", Marker, queue_size=1)
@@ -47,16 +46,20 @@ class Tracker(object):
         self._age_threshold = 3
 
         self._init_sim = None
-        self._world_type = "screws"
+        self._world_type = None
+        if self._virtual:
+            self._world_type = "screws"
+            self._simulated_objects_sub = rospy.Subscriber("/simulated_objects", POIArray, self.on_simulated_objects)
 
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
         self._event_sub = rospy.Subscriber("event", String, self.on_event, queue_size = 1)
         if not self._virtual:
-            from pose_detector.msg import DetectedObject,DetectedObjects
-            self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
+            #from pose_detector.msg import DetectedObject,DetectedObjects
+            #self._object_sub = rospy.Subscriber("/detected_objects", DetectedObjects, self.on_objects)
+            #self._object_sub = rospy.Subscriber("/ros_marker/detected_objects", String, self.on_objects)
+            self._object_sub = rospy.Subscriber("/detector/objects", POIArray, self.on_objects)
 
-        self._simulated_objects_sub = rospy.Subscriber("/simulated_objects", POIArray, self.on_simulated_objects)
 
     def get_diff_poses(self, p1, p2):
         return np.sqrt((p1.position.x-p2.position.x)**2+(p1.position.y-p2.position.y)**2+(p1.position.z-p2.position.z)**2)
@@ -85,12 +88,29 @@ class Tracker(object):
         poi.pose = pose
         return poi
 
+    def get_poi_from_string(self, o):
+        try:
+            t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, o, rospy.Time(0))
+        except:
+            return None
+        poi = POI()
+        poi.type.data = o.split("_")[0]
+        poi.id = int(o.split("_")[1])
+        if poi.type.data == "screw":
+            poi.state.data = "unscrewed"
+        poi.pose.header.frame_id = REFERENCE_FRAME
+        poi.pose.pose = self.get_pose_from_trans(t)
+        poi.age = 1
+        return poi
+
     def update_poi(self, p1, p2):
         k1 = 4
         k2 = 1
         p1.position.x=(k1*p1.position.x+k2*p2.position.x)/(k1+k2)
         p1.position.y=(k1*p1.position.y+k2*p2.position.y)/(k1+k2)
         p1.position.z=(k1*p1.position.z+k2*p2.position.z)/(k1+k2)
+
+        p1.orientation = p2.orientation
 
     def testFilter(self,o,newPois,minX,maxX,minY,maxY):
         if not (o.pose.pose.position.x>minX and o.pose.pose.position.x<maxX and o.pose.pose.position.y>minY and o.pose.pose.position.y<maxY):
@@ -104,27 +124,22 @@ class Tracker(object):
     def on_objects(self, msg):
         if self._moving or self._sim:
             return
-        minX=np.inf
-        maxX=-np.inf
-        minY=np.inf
-        maxY=-np.inf
         for o in self._objects:
-            #print("id "+str(o.id))
-            #print(o.age)
+            #Aging
             if o.age > 0:
                 o.age -= 1
 
-        for new_o in msg.detected_objects:
-            poi = self.get_poi_from_object(new_o)
-            minX = min(minX,poi.pose.pose.position.x)
-            maxX = max(maxX,poi.pose.pose.position.x)
-            minY = min(minY,poi.pose.pose.position.y)
-            maxY = max(maxY,poi.pose.pose.position.y)
+        for poi in msg.poi_array:
+            #poi = self.get_poi_from_object(new_o)
+            #minX = min(minX,poi.pose.pose.position.x)
+            #maxX = max(maxX,poi.pose.pose.position.x)
+            #minY = min(minY,poi.pose.pose.position.y)
+            #maxY = max(maxY,poi.pose.pose.position.y)
             poi.id = 0
             for known_poi in self._objects:
                 if poi.type == known_poi.type:
                     poi.id+=1
-                    if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .04:
+                    if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .02:
                         self.update_poi(known_poi.pose.pose,poi.pose.pose)
                         if known_poi.age<252:
                             known_poi.age += 2
@@ -133,6 +148,20 @@ class Tracker(object):
                 print("new object")
                 poi.age = 1
                 self._objects.append(poi)
+
+
+        #QR code with unique id
+        #poi = POI()
+        #for new_o in msg.data.split(","):
+        #    for o in self._objects:
+        #        if o.type.data+"_"+str(o.id) == new_o:
+        #            if o.age < 252:
+        #                o.age+=2
+        #            break
+        #    else:
+        #        p = self.get_poi_from_string(new_o)
+        #        if p is not None:
+        #            self._objects.append(p)
         #self._objects[:] = [o for o in self._objects if self.testFilter(o,newPois,minX,maxX,minY,maxY)]
         #self._objects = newPois
         
