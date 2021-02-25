@@ -280,8 +280,6 @@ class Tracker(object):
             p.state = String("assembled")
             self._objects.append(p)
             
-            
-        
         if event[0] == "grasped":
             self._grasped_object = event[1]
             print("grasping "+self._grasped_object)
@@ -356,8 +354,8 @@ class Tracker(object):
         return t   
 
     def publish_pois(self):
-        if self._init_pois is None:
-            return
+        #if self._init_pois is None:
+        #    return
         self._tf_array = []
         msg = POIArray()
         if self._world_type == "screws":
@@ -376,7 +374,8 @@ class Tracker(object):
             self._tf_array.append(t)
             msg.poi_array.append(poi)
         self._poi_pub.publish(msg)
-        self._br.sendTransform(self._tf_array)
+        if len(self._tf_array) > 0:
+            self._br.sendTransform(self._tf_array)
            
     def get_pose_from_trans(self, t):
         pose = Pose()

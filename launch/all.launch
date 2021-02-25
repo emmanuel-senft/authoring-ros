@@ -45,12 +45,14 @@
             <param name="only_virtual" value="$(arg only_virtual)" />
         </node>
     </group>
-
-    <group if="$(arg with_rviz)">
-        <!-- startup rviz -->
-        <node pkg="authoring" type="rviz_manager" name="rviz_manager">
-            <param name="only_virtual" value="$(arg only_virtual)" />
-        </node>
+    
+    <group unless="$(arg only_virtual)">
+        <group if="$(arg with_rviz)">
+            <!-- startup rviz -->
+            <node pkg="authoring" type="rviz_manager" name="rviz_manager">
+                <param name="only_virtual" value="$(arg only_virtual)" />
+            </node>
+        </group>
     </group>
     
     <group if="$(arg local_kinect)">

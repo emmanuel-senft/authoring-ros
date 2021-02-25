@@ -195,7 +195,7 @@ class Parser(object):
         return p
 
     def get_rotated_point(self, coord):
-        coord = coord.split(',')
+        coord = coord.split('/')
         p = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
         if p == None:
             return None
@@ -854,6 +854,55 @@ class Parser(object):
                 action.item.data = item_str
                 moved[item_str]=action.poses.poses[-1]
 
+            elif name == "MovePixel":
+                action.type = action.MOVE_UNKNOWN
+                points = cmd[1].split('_')
+                h_start = self.get_rotated_point(points[0])
+                h_end = self.get_rotated_point(points[1])
+                if h_start == None or h_end == None:
+
+                    return None
+                action.pose = h_start
+                action.poses.poses.append(h_start)
+                action.poses.poses.append(h_end)
+                action.item = String(cmd[1])
+                
+                for p in action.poses.poses:
+                    print(p.pose.position)
+                    if p.pose.position.x>.67 or p.pose.position.z < -0.05 or p.pose.position.y>.30:
+                        self._gui_pub.publish(String("out_of_reach"))
+                        return None    
+
+                actions.append(action)
+
+                t = TransformStamped()
+                t.header = h_start.header
+                t.child_frame_id = "goal"
+                t.transform.translation = h_start.pose.position
+                t.transform.rotation = h_start.pose.orientation
+                self._br.sendTransform(t)
+                continue
+
+            elif name == "Wipe":
+                coords = cmd[1].split('_')
+                h_grasp = self.get_rotated_point(coords[0])
+                if h_grasp == None:
+                    return None 
+                action.poses.poses.append(h_grasp)
+                action.pose = h_grasp
+                for coord in coords[1:]:
+                    coord = coord.split(',')
+                    pose = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
+                    if pose == None:
+                        return None 
+                    pose = self.get_hybrid_pose(self._tfBuffer.transform(pose,REFERENCE_FRAME))
+                    pose.pose.orientation.x = 0
+                    pose.pose.orientation.y = 0
+                    pose.pose.orientation.z = 0
+                    pose.pose.orientation.w = 1
+                    action.poses.header = pose.header
+                    action.poses.poses.append(pose)
+                action.item = String(cmd[1])
             elif cmd[1].find(",") == -1: 
                 item_list = cmd[1].split('-')
                 for item in item_list:
@@ -871,55 +920,7 @@ class Parser(object):
                     action.item = String(item_list[0])
                 action.pose = action.poses.poses[0]
             else:
-                if name == 'Move':
-                    action.type = action.MOVE_UNKNOWN
-                    points = cmd[1].split('_')
-                    h_start = self.get_rotated_point(points[0])
-                    h_end = self.get_rotated_point(points[1])
-                    if h_start == None or h_end == None:
-
-                        return None
-                    action.pose = h_start
-                    action.poses.poses.append(h_start)
-                    action.poses.poses.append(h_end)
-                    action.item = String(cmd[1])
-                    
-                    for p in action.poses.poses:
-                        if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.30:
-                            self._gui_pub.publish(String("out_of_reach"))
-                            return None    
-
-                    actions.append(action)
-
-                    t = TransformStamped()
-                    t.header = h_start.header
-                    t.child_frame_id = "goal"
-                    t.transform.translation = h_start.pose.position
-                    t.transform.rotation = h_start.pose.orientation
-                    self._br.sendTransform(t)
-                    continue
-                elif name == "Wipe":
-                    coords = cmd[1].split('_')
-                    h_grasp = self.get_rotated_point(coords[0])
-                    if h_grasp == None:
-                        return None 
-                    action.poses.poses.append(h_grasp)
-                    action.pose = h_grasp
-                    for coord in coords[1:]:
-                        coord = coord.split(',')
-                        pose = self.get_pose_from_pixel(int(coord[0]),int(coord[1]))
-                        if pose == None:
-                            return None 
-                        pose = self.get_hybrid_pose(self._tfBuffer.transform(pose,REFERENCE_FRAME))
-                        pose.pose.orientation.x = 0
-                        pose.pose.orientation.y = 0
-                        pose.pose.orientation.z = 0
-                        pose.pose.orientation.w = 1
-                        action.poses.header = pose.header
-                        action.poses.poses.append(pose)
-                    action.item = String(cmd[1])
-                else:
-                    return None
+                return None
 
             #for p in action.poses.poses:
             #    if p.pose.position.x>.67 or p.pose.position.z < 0 or p.pose.position.y>.28:
@@ -963,7 +964,7 @@ class Parser(object):
                     return p
         return None
     
-    def find_free_space_in_zone(self,item_type,zone, pattern, moved = {}):          
+    def find_free_space_in_zone(self,item_type,zone, pattern, moved = {}):
         cols = int(pattern.split("x")[0])
         rows = int(pattern.split("x")[1])
         points = zone.points
