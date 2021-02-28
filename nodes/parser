@@ -831,6 +831,8 @@ class Parser(object):
                     moved[item_name]=action.poses.poses[-1]
                     actions.append(action)
                     continue
+                elif pattern == "mid":
+                    destination = zone_b.points.mean(0)
                 else:
                     destination = self.find_free_space_in_zone(item_type,zone_b, pattern,moved)
                     if destination is None:
