@@ -819,7 +819,7 @@ class Parser(object):
                     if dest is None:
                         continue
                     item_name = self.get_poi_name(item)
-                    action.item = String(item_name)
+                    action.item = String(item_name+"-"+self.get_poi_name(dest))
                     t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_name, rospy.Time(0)) 
                     pose = self.get_pose_from_trans(t)
                     action.pose = pose

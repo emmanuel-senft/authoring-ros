@@ -318,6 +318,21 @@ class Tracker(object):
                     if poi.type.data == item_type and poi.id == item_id:
                         poi.state = String("unscrewed")
                         return
+            try:
+                param = event[1].split(":")[1]
+                print("got param")
+            except:
+                param = ""
+            if a == "Move" and "-" in param:
+                print("got move")
+                item1 = self.get_object_from_string(param.split("-")[0])
+                item2 = self.get_object_from_string(param.split("-")[1])
+                if item1.type.data == "top" and item2.type.data == "holder" and item2.state.data == "empty":
+                    item2.state.data = "full"
+                    self._objects = [x for x in self._objects if self.get_name(x) != self.get_name(item1)]
+
+    def get_object_from_string(self, name):
+        return next((x for x in self._objects if self.get_name(x) == name), None)
 
     def get_transform(self, poi):
         if self.get_name(poi) == self._grasped_object:
