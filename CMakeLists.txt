@@ -118,7 +118,6 @@ catkin_install_python(PROGRAMS
     nodes/rviz_manager
     nodes/recorder
     nodes/socket
-    nodes/test
     nodes/detector
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
