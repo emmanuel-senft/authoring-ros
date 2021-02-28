@@ -715,8 +715,9 @@ class Parser(object):
             to_trigger.append(t)
         if len(to_trigger)>1:
             #Resolve conflicts
-            return
-        if len(to_trigger) == 1:    
+            #return
+            pass
+        if len(to_trigger) >= 1:    
             t = to_trigger[0]
             behavior = t.behavior
             p = t.candidates[0]
