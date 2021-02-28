@@ -354,8 +354,8 @@ class Tracker(object):
         return t   
 
     def publish_pois(self):
-        #if self._init_pois is None:
-        #    return
+        if self._virtual and self._init_pois is None:
+            return
         self._tf_array = []
         msg = POIArray()
         if self._world_type == "screws":
