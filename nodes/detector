@@ -105,7 +105,10 @@ class Detector(object):
             self._obj_publisher.publish(array)
 
     def get_poi(self, name, center,mask):
-        p = self.get_pose_from_pixel(center[0],center[1])
+        offset = 0
+        if name == "box":
+            offset = .07
+        p = self.get_pose_from_pixel(center[0],center[1],offset)
         if p is None:
             p = PoseStamped()
             p.header.frame_id = REFERENCE_FRAME
@@ -157,7 +160,7 @@ class Detector(object):
         t.transform.rotation = p.pose.orientation
         self._br.sendTransform(t)
 
-    def get_table_intersection(self,x,y):
+    def get_table_intersection(self,x,y,offset = .01):
         p = [x,y]
         p = self._model.rectifyPoint(p)
         p3d = self._model.projectPixelTo3dRay(p)
@@ -177,7 +180,7 @@ class Detector(object):
 
         camera = self._tfBuffer.lookup_transform(REFERENCE_FRAME, CAMERA_FRAME, rospy.Time(0)).transform
         
-        l = camera.translation.z / (camera.translation.z-p.pose.position.z)
+        l = (camera.translation.z-offset) / (camera.translation.z-p.pose.position.z)
         x = camera.translation.x + l * (p.pose.position.x-camera.translation.x)
         y = camera.translation.y + l * (p.pose.position.y-camera.translation.y)
 
@@ -193,10 +196,11 @@ class Detector(object):
         point.z=d/p3d[2]*p3d[2]
         return point
 
-    def get_pose_from_pixel(self,x,y):
+    def get_pose_from_pixel(self,x,y,offset = 0):
+
         if self._depth is None: 
             return None
-        d = self._depth[y,x]
+        d = self._depth[y,x] - offset
         if d == 0.0:
             print("bad depth")
             #self._gui_pub.publish(String("bad_depth"))
