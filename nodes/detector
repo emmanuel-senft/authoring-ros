@@ -22,7 +22,7 @@ from sklearn.decomposition import PCA
 
 import torch, torchvision
 import torch
-assert torch.__version__.startswith("1.7")
+#assert torch.__version__.startswith("1.7")
 
 # Some basic setup:
 # Setup detectron2 logger
@@ -62,7 +62,7 @@ class Detector(object):
         self._cfg.DATALOADER.NUM_WORKERS = 2
 
         self._cfg.MODEL.WEIGHTS = rospack.get_path('authoring')+"/model/model_final.pth"  # path to the model we just trained
-        self._cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.4   # set a custom testing threshold
+        self._cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3   # set a custom testing threshold
         self._cfg.MODEL.ROI_HEADS.NUM_CLASSES = 9
         self._predictor = DefaultPredictor(self._cfg)
         self._classes = ["bolt","box","connector2","connector3","fastener","holder_assembled","holder_empty","holder_full","top"]
@@ -105,16 +105,22 @@ class Detector(object):
             self._obj_publisher.publish(array)
 
     def get_poi(self, name, center,mask):
+        print(name)
         offset = 0
         if name == "box":
             offset = .07
+        if name == "holder_empty":
+            offset = .01
         p = self.get_pose_from_pixel(center[0],center[1],offset)
         if p is None:
+            print("table")
             p = PoseStamped()
             p.header.frame_id = REFERENCE_FRAME
             p.header.stamp = rospy.Time(0)
             [p.pose.position.x,p.pose.position.y] = self.get_table_intersection(center[0],center[1])
         else:
+            p.pose.position.x *=.98
+            p.pose.position.y *=.98
             p = self._tfBuffer.transform(p,REFERENCE_FRAME)
         if not name.startswith("holder") and name != "top":
             pca=PCA(n_components=1)
