@@ -14,7 +14,7 @@ from nav_msgs.msg import Path
 
 from panda_ros_msgs.msg import HybridPose, JointPose
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist,TwistStamped
 
 import numpy as np 
 
@@ -61,6 +61,8 @@ class Simulator(object):
         self._cam_control = False
 
         self._pause = False
+        self._cart_vel_sub = rospy.Subscriber("/panda/cart_velocity", TwistStamped, self.on_cart_vel)
+        
 
     def on_pose(self, msg):
         goal = msg.pose
@@ -120,6 +122,9 @@ class Simulator(object):
     def on_vel(self,msg):
         for i,v in enumerate(msg.joint_pose):
             self._current_velocity[i]=v
+
+    def on_cart_vel(self, msg):
+        self._cart_vel_pub.publish(msg.twist)
 
     def run(self):
         r = rospy.Rate(self._freq)
