@@ -47,7 +47,7 @@ class Parser(object):
         self._moving = False
         self._zones = {}
         self._pause_autonomy = False
-
+        self._conflict = None
 
         self._tfBuffer = tf2_ros.Buffer()
         self._tl = tf2_ros.TransformListener(self._tfBuffer)
@@ -343,6 +343,7 @@ class Parser(object):
             t.conditions = self.parse_conditions(list_actions[1].split(","))
             
             t.behavior = list_actions[2]
+            t.priority = 0
             self._triggers[name] = t
             return
 
@@ -351,6 +352,26 @@ class Parser(object):
                 self._triggers.pop(list_actions[1])
             except:
                 print("No trigger named "+list_actions[1])
+            return
+        
+        if command_type == "priority":
+            name = list_actions[1].split(",")[0]
+            reason = list_actions[1].split(",")[1]
+            if not name in self._conflict:
+                return
+            if reason == "always":
+                for name2 in self._triggers:
+                    if name2 in self._conflict and name2 != name:
+                        self._triggers[name2].priority = min(self._triggers[name2].priority,self._triggers[name].priority-1)
+
+            t = self._triggers[name]
+            t.name = name
+            t.candidates = self.get_candidates(t.conditions)
+            actions = self.parse_actions(t.behavior.split(","),t.candidates) 
+            if actions is None:
+                return 
+            self.run_trigger(t)
+            self._pause_autonomy = False
             return
 
         if command_type == 'load_view':
@@ -716,30 +737,43 @@ class Parser(object):
         to_trigger = []
         for name in self._triggers:
             t = self._triggers[name]
+            t.name = name
             t.candidates = self.get_candidates(t.conditions)
             actions = self.parse_actions(t.behavior.split(","),t.candidates) 
             if actions is None:
                 continue 
             to_trigger.append(t)
+        to_trigger = np.array(to_trigger)
         if len(to_trigger)>1:
-            #Resolve conflicts
-            #return
-            pass
-        if len(to_trigger) >= 1:    
-            t = to_trigger[0]
-            behavior = t.behavior
-            p = t.candidates[0]
-            if "MoveDiscrete" in t.behavior or "Tighten" in t.behavior or "Loosen" in t.behavior:
-                behavior=behavior.replace(p.type.data,self.get_poi_name(p))
-            actions = self.parse_actions(behavior.split(","),t.candidates) 
-            if actions is None:
-                return 
-            cmd = Command()
-            cmd.type = cmd.EXEC
-            for action in actions:
-                cmd.core_action.append(action)
-            self._command_pub.publish(cmd)
-            return
+            #Apply priority rules
+            priorities = np.array([t.priority for t in to_trigger])
+            if len(np.where(priorities == max(priorities))[0]) == 1:
+                self.run_trigger(to_trigger[np.argmax(priorities)])
+            else:
+                #if not, inform frontend
+                self._conflict = [t.name for t in to_trigger[np.where(priorities == max(priorities))[0]]]
+                msg = "conflict;"+",".join(self._conflict)
+                self._event_pub.publish(String(msg))
+                self._pause_autonomy = True
+        elif len(to_trigger) == 1:    
+            self.run_trigger(to_trigger[0])
+            
+
+    def run_trigger(self, t):      
+        behavior = t.behavior
+        p = t.candidates[0]
+        if "MoveDiscrete" in t.behavior or "Tighten" in t.behavior or "Loosen" in t.behavior:
+            behavior=behavior.replace(p.type.data,self.get_poi_name(p))
+        actions = self.parse_actions(behavior.split(","),t.candidates) 
+        if actions is None:
+            return 
+        self._event_pub.publish(String("executing_trigger;"+t.name))
+        cmd = Command()
+        cmd.type = cmd.EXEC
+        for action in actions:
+            cmd.core_action.append(action)
+        self._command_pub.publish(cmd)
+        return
 
     def get_candidates(self, conditions):
         candidates = self._pois
