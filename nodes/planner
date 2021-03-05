@@ -228,7 +228,7 @@ class Planner(object):
             move_to.pose.pose.position.z-=.01
             release = Action(sim=Bool(sim))
             release.finished.data = False
-            release.type = grasp.RELEASE
+            release.type = release.RELEASE
             release.item = String(action.item.data.split("_")[1])
 
             plan.append(move_above)
@@ -276,8 +276,8 @@ class Planner(object):
             move_close = copy.deepcopy(move_above)
             move_to.type = move_to.MOVE_FORCE
             move_above.pose.pose.position.z+=.08
-            move_close.pose.pose.position.z+=.05
-            move_to.pose.pose.position.z -= .003
+            move_close.pose.pose.position.z+=.02
+            move_to.pose.pose.position.z -= .01
             grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
             grasp.type = grasp.GRASP
@@ -288,12 +288,12 @@ class Planner(object):
 
             plan.append(move_above)
             plan.append(bias)
-            #plan.append(move_close)
+            plan.append(move_close)
             plan.append(move_to)
             plan.append(grasp)
             #if sub_action:
             pull = copy.deepcopy(move_above)
-            pull.pose.sel_vector=[0,0,1,1,1,1]
+            #pull.pose.sel_vector=[0,0,1,1,1,1]
             #pull.pose.wrench.force.z = 20 
             plan.append(pull)
             
@@ -307,17 +307,19 @@ class Planner(object):
             move_above.type = move_above.MOVE
             move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.08
+            move_above.pose.pose.position.z+=.06
             if action.type == action.PLACE:
                 move_to.type = move_to.MOVE_FORCE
             else:
-                move_to.pose.pose.position.z+=.01
-            move_to.pose.pose.position.z+=.01
+                move_to.pose.pose.position.z+=.02
+            move_to.pose.pose.position.z+=.0
             move_safe = copy.deepcopy(move_above)
             release = Action(sim=Bool(sim))
             release.finished.data = False
             release.type = release.RELEASE
             release.item = action.item
+            print(move_to.pose.pose)
+
             release_forces = copy.deepcopy(move_to)
             release_forces.type = bias.RELEASE_FORCE
 
@@ -640,6 +642,8 @@ class Planner(object):
             return "Reset"
         if action.type == action.RELEASE_FORCE:
             return "Release force"
+        if action.type == action.MOVE_ANGLE:
+            return "move angle"
         return ""
 
     def cancel_motion(self):

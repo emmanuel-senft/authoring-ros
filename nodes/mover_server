@@ -328,6 +328,7 @@ class AuthoringAction(object):
             self.success()
 
     def go_to_angle(self):
+        rospy.sleep(.2)
         if self._current_joint is None:
             return False
         diff = []
@@ -340,7 +341,7 @@ class AuthoringAction(object):
             return True
         if not self._angle_move:
             self._angle_move = True
-            max_vel = 2 if self._virtual else .5
+            max_vel = 2 if self._virtual else 1
             d_t = np.fabs(max_diff)/max_vel
 
             pose = JointPose()
@@ -434,17 +435,19 @@ class AuthoringAction(object):
         
         linear_threshold = .001
         angular_threshold = .01
-        if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold):
+        if np.all(np.abs(linear[:1])<linear_threshold) and linear[2]>0 and np.all(np.abs(angular)<angular_threshold):
+
             self._reached_position = True
             return True
-        if (action.sim.data or self._virtual) and linear[2]<0:
+        if (action.sim.data or self._virtual) and linear[2]>-.005:
             self._reached_position = True
             return True
         linear[2] = 0
         force_threshold = self._push_force*.7
+        progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
+        
         if np.all(np.abs(linear)<linear_threshold) and np.all(np.abs(angular)<angular_threshold) and self._biased_wrench.force.z < force_threshold:
             return True
-        progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
         goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
         goal.wrench.force.z = self._push_force
         
@@ -514,8 +517,8 @@ class AuthoringAction(object):
         #    self._success = False
         #    print("fail")
         #    return True
-        linear_threshold = .001
-        angular_threshold = .01
+        linear_threshold = .003
+        angular_threshold = .02
         sel_vector = np.array([goal.sel_vector[0],goal.sel_vector[1],goal.sel_vector[2],goal.sel_vector[3],goal.sel_vector[4],goal.sel_vector[5]])
         forces = np.array([goal.wrench.force.x,goal.wrench.force.y,goal.wrench.force.z,goal.wrench.torque.x,goal.wrench.torque.y,goal.wrench.torque.z])
         
@@ -665,8 +668,8 @@ class AuthoringAction(object):
 
     def get_time_between_pose(self, start, end):
         linear,angular = self.get_diff_poses(start,end)
-        max_v_lin = 20. if self._virtual else .3
-        max_v_ang = 40. if self._virtual else 1
+        max_v_lin = 20. if self._virtual else .5
+        max_v_ang = 40. if self._virtual else 2
         t_lin = np.sqrt(np.sum(linear**2)) / max_v_lin
         t_ang = max(np.fabs(angular))/max_v_ang
         return max(t_lin,t_ang)

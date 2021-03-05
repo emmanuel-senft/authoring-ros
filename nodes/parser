@@ -482,9 +482,9 @@ class Parser(object):
                 if p is not None:
                     p = self._tfBuffer.transform(p,REFERENCE_FRAME)
                     print(p.pose.position)
-                    if p.pose.position.x>.67 or p.pose.position.y > 0.30:
-                        self._gui_pub.publish(String("out_of_reach"))
-                        return      
+                    #if p.pose.position.x>.67 or p.pose.position.y > 0.30:
+                    #    self._gui_pub.publish(String("out_of_reach"))
+                    #    return      
                     self._gui_pub.publish(String("good_move"))
                     t = TransformStamped()
                     t.header = p.header
@@ -1033,6 +1033,8 @@ class Parser(object):
         return (x,y)
 
     def point_in_hull(self, point, hull, tolerance=1e-12):
+        if hull is None:
+            return False
         return all(
             (np.dot(eq[:-1], point) + eq[-1] <= tolerance)
             for eq in hull.equations)
