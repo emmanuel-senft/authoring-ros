@@ -184,7 +184,9 @@ class Planner(object):
             a1.poses.poses.append(action.poses.poses[0])
             self.add_subaction(a1,sim,plan,sub_action=True)
             a2 = Action(sim=Bool(sim))
-            a2.type = a2.DROP
+            a2.type = a2.PLACE
+            if "box" in action.item.data:
+                a2.type = a2.DROP
             a2.item = a1.item
             a2.poses.header = action.poses.header
             a2.poses.poses.append(action.poses.poses[1])
