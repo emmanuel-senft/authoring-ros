@@ -318,10 +318,13 @@ class Planner(object):
             release.finished.data = False
             release.type = release.RELEASE
             release.item = action.item
+            release_forces = copy.deepcopy(move_to)
+            release_forces.type = bias.RELEASE_FORCE
 
             plan.append(move_above)
             plan.append(bias)
             plan.append(move_to)
+            plan.append(release_forces)
             plan.append(release)
             plan.append(move_safe)
 
@@ -611,6 +614,8 @@ class Planner(object):
             return "Grasp"
         if action.type == action.RELEASE:
             return "Release"
+        if action.type == action.RELEASE_FORCE:
+            return "Release Force"
         if action.type == action.MOVE_OBJECT:
             return "Move"
         if action.type == action.VIEW:
@@ -633,6 +638,8 @@ class Planner(object):
             return "Drop"
         if action.type == action.RESET:
             return "Reset"
+        if action.type == action.RELEASE_FORCE:
+            return "Release force"
         return ""
 
     def cancel_motion(self):

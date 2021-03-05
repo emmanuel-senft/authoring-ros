@@ -270,6 +270,9 @@ class AuthoringAction(object):
         elif self._current_action.type == self._current_action.MOVE_FORCE:
             if self.move_force():
                 self.success()
+        elif self._current_action.type == self._current_action.RELEASE_FORCE:
+            if self._virtual or self.release_force():
+                self.success()
         elif self._current_action.type == self._current_action.INSERT:
             if self.insert():
                 self.success()
@@ -444,6 +447,28 @@ class AuthoringAction(object):
         progress = min((rospy.Time.now() - self._starting_time).to_sec()/(action.pose.header.stamp - self._starting_time).to_sec(),1)
         goal.pose = self.interpolate_poses(self._starting_pose.pose, action.pose.pose,progress)
         goal.wrench.force.z = self._push_force
+        
+        self.publish_pose(goal)
+        
+        return False
+
+    def release_force(self):
+        action = self._current_action
+        goal = HybridPose()
+        goal.sel_vector = [0,0,0,0,0,0]
+        goal.constraint_frame.w=1
+
+        ee_frame = ('sim_' if action.sim.data else '') + 'panda_gripper'
+        t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, ee_frame, rospy.Time(0))
+        linear,angular = self.get_diff_pose_trans(action.pose.pose,t)
+        
+        if (action.sim.data or self._virtual):
+            return True
+        force_threshold = self._push_force*.1
+        
+        if rospy.Time.now() > self._starting_time + rospy.Duration(.1):#self._biased_wrench.force.z > force_threshold:
+            return True
+        goal.wrench.force.z = -self._push_force
         
         self.publish_pose(goal)
         
