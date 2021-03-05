@@ -7,7 +7,7 @@ import signal
 import ros_numpy
 import sys
 import cv2
-from threading import Event
+from threading import Event, Timer
 from std_msgs.msg import String
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
 import image_geometry
