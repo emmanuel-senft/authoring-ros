@@ -119,12 +119,20 @@ class Parser(object):
         
         if msg.data == "motion_finished":
             self._moving = False
+            if not self._pause_autonomy:
+                self._pause_autonomy = True
+                t = Timer(1.5, self.restart_autonomy) 
+                t.start()
         
         if msg.data == "pause_autonomy":
             self._pause_autonomy = True
         
         if msg.data == "resume_autonomy":
             self._pause_autonomy = False
+
+    def restart_autonomy(self):
+        print("ready autonomy")
+        self._pause_autonomy = False
 
     def on_poi(self, msg):
         self._pois = []

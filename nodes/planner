@@ -719,6 +719,12 @@ class Planner(object):
             print(self._client.wait_for_result())
             result = self._client.get_result().success.data
             if not result:
+                self._plan = []
+                goal = authoring_msgs.msg.AuthoringGoal()
+                action = Action()
+                action.type = action.RESET
+                self.add_subaction(action, False)
+                self.run_plan(0)
                 break
             self._current_action_progress.append(action)
 

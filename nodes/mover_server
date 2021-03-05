@@ -132,8 +132,13 @@ class AuthoringAction(object):
 
     def on_panda_event(self, msg):
         if msg.data == self._waiting_for:
+
+            success = True
+            rospy.sleep(.2)
+            if self._waiting_for == "grasp_finished" and self._current_joint.position[-1]<.001:
+                success = False 
             if not self._pause:
-                self.success()
+                self.success(success)
             else:
                 self._waiting_for = "finished"
 
@@ -299,10 +304,16 @@ class AuthoringAction(object):
                 self._command_pub.publish("grasp")
             self._on_success = self.grasped
         if self._waiting_for == "finished":
-            self.success()
+            success = True
+            if self._current_joint.position[-1]<.001:
+                success = False 
+            self.success(success)
 
     def release(self):
         if self._waiting_for is None:
+            if self._current_joint.position[-1]>.034:
+                rospy.sleep(.1)
+                return self.success()
             self._cart_vel_pub.publish(TwistStamped())
             self._waiting_for = "release_finished"
             if self._virtual or self._current_action.sim.data:
