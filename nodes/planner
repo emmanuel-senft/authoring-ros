@@ -245,7 +245,11 @@ class Planner(object):
             move.finished.data = False
             move.type = move.MOVE_ANGLE
             move.joint_pose = [0., -0.34, 0., -1.66, 0., 1.32, 0.8]
+            release = Action(sim=Bool(sim))
+            release.finished.data = False
+            release.type = release.RELEASE
             plan.append(move)
+            plan.append(release)
 
         if action.type == action.MOVE_ANGLE:
             move = Action(sim=Bool(sim))
