@@ -346,6 +346,22 @@ class Parser(object):
             t.priority = 0
             self._triggers[name] = t
             return
+            
+        if command_type.startswith("button_trigger"):
+            button_name = list_actions[1]
+            for name in self._triggers:
+                t = self._triggers[name]
+                t.candidates = self._pois
+                print(t.conditions)
+                print(button_name)
+                if t.conditions == button_name:
+                    t.name = name
+                    actions = self.parse_actions(t.behavior.split(",")) 
+                    if actions is None:
+                        continue    
+                    self.run_trigger(t)
+                    break
+            return
 
         if command_type == "delete_trigger":
             try:
@@ -737,6 +753,8 @@ class Parser(object):
         to_trigger = []
         for name in self._triggers:
             t = self._triggers[name]
+            if type(t.conditions) == str:
+                continue
             t.name = name
             t.candidates = self.get_candidates(t.conditions)
             actions = self.parse_actions(t.behavior.split(","),t.candidates) 
@@ -816,6 +834,8 @@ class Parser(object):
         return None 
     def parse_conditions(self, list_conditions):
         #screwM5-IsNotIn-200_400_500_500
+        if list_conditions[0].startswith("button"):
+            return list_conditions[0]
         to_return = []
         for condition in list_conditions:
             c = types.SimpleNamespace()
