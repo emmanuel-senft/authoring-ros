@@ -214,7 +214,7 @@ class Tracker(object):
             for t in ["bolt","connector2","connector3","fastener"]:
                 poi_init.type = String(t)
                 for i in range(4):
-                    r = .2
+                    r = .15
                     dx = r
                     dy = r
                     while(dx**2+dy**2>r**2):
@@ -225,6 +225,18 @@ class Tracker(object):
                     p.pose.pose.position.y+=dy
                     p.id = i
                     self._objects.append(p)
+            
+            poi_init.type = String("box")
+            poi_init.pose.pose.position.x +=.35
+            poi_init.pose.pose.position.y =-.15
+            for i in range(4):
+                p = copy.deepcopy(poi_init)
+                p.pose.pose.position.y+=i*.1
+                p.id = i
+                self._objects.append(p)
+                    
+
+            
 
         if event[0] == "reset_world_kit":
             self._world_type = "kit"

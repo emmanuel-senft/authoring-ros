@@ -883,29 +883,29 @@ class Parser(object):
                     return None
                 item_name = self.get_poi_name(item)
 
-                if pattern.startswith("box"):
-                    try:
-                        t_dest = self._tfBuffer.lookup_transform(REFERENCE_FRAME, pattern, rospy.Time(0)) 
-                    except:
-                        print("no box named "+str(pattern))
-                        continue 
-                    action.item = String(item_name+"-"+pattern)
-                    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_name, rospy.Time(0)) 
-                    pose = self.get_pose_from_trans(t)
-                    action.pose = pose
-                    action.poses.poses.append(pose) 
-                    pose = self.get_pose_from_trans(t_dest)
-                    action.poses.poses.append(pose)
-                    action.type = action.MOVE_OBJECT
-                    moved[item_name]=action.poses.poses[-1]
-                    actions.append(action)
-                    continue
+                #if pattern.startswith("box"):
+                #    try:
+                #        t_dest = self._tfBuffer.lookup_transform(REFERENCE_FRAME, pattern, rospy.Time(0)) 
+                #    except:
+                #        print("no box named "+str(pattern))
+                #        continue 
+                #    action.item = String(item_name+"-"+pattern)
+                #    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_name, rospy.Time(0)) 
+                #    pose = self.get_pose_from_trans(t)
+                #    action.pose = pose
+                #    action.poses.poses.append(pose) 
+                #    pose = self.get_pose_from_trans(t_dest)
+                #    action.poses.poses.append(pose)
+                #    action.type = action.MOVE_OBJECT
+                #    moved[item_name]=action.poses.poses[-1]
+                #    actions.append(action)
+                #    continue
 
                 zone_b = self.get_zone(args[2])
 
                 if zone_b is None:
                     return
-                if pattern == "holder":
+                if pattern == "holder" or pattern == "box":
                     dest = self.find_item_in_zone(pattern,zone_b,moved,candidates)
                     if dest is None:
                         continue
