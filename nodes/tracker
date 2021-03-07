@@ -43,7 +43,7 @@ class Tracker(object):
         self._cmd = None
         self._tf_array = []
 
-        self._age_threshold = 3
+        self._age_threshold = 2
 
         self._init_sim = None
         self._world_type = None
@@ -141,8 +141,9 @@ class Tracker(object):
                     poi.id+=1
                     if self.get_diff_poses(known_poi.pose.pose, poi.pose.pose) < .02:
                         self.update_poi(known_poi.pose.pose,poi.pose.pose)
-                        if known_poi.age<252:
-                            known_poi.age += 2
+                        known_poi.state = poi.state
+                        if known_poi.age<2:
+                            known_poi.age = min(known_poi.age+2,2)
                         break
             else:
                 print("new object")
@@ -351,7 +352,7 @@ class Tracker(object):
             t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, 'sim_panda_gripper', rospy.Time(0))
             poi.pose.header.frame_id = REFERENCE_FRAME
             poi.pose.pose.position = self.get_pose_from_trans(t).position
-            poi.age = 20
+            poi.age = self._age_threshold + 1
         t = TransformStamped()
         t.header.frame_id = poi.pose.header.frame_id
         t.child_frame_id = self.get_name(poi)
