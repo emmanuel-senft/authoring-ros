@@ -908,7 +908,7 @@ class Parser(object):
                 if pattern == "holder" or pattern == "box":
                     dest = self.find_item_in_zone(pattern,zone_b,moved,candidates)
                     if dest is None:
-                        continue
+                        return None
                     
                     action.item = String(item_name+"-"+self.get_poi_name(dest))
                     t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_name, rospy.Time(0)) 
@@ -928,7 +928,7 @@ class Parser(object):
                     destination = self.find_free_space_in_zone(item_type,zone_b, pattern,moved)
                     if destination is None:
                         print("full destination")
-                        continue
+                        return None
                 
                 item_str = self.get_poi_name(item)
                 t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_str, rospy.Time(0)) 
