@@ -4,6 +4,7 @@ import math
 import rospy
 import signal
 import sys
+import copy
 
 from sensor_msgs.msg import Image, PointCloud2, CameraInfo, JointState
 from cv_bridge import CvBridge, CvBridgeError
@@ -62,7 +63,7 @@ class Detector(object):
         self._cfg.DATALOADER.NUM_WORKERS = 2
 
         self._cfg.MODEL.WEIGHTS = rospack.get_path('authoring')+"/model/model_final.pth"  # path to the model we just trained
-        self._cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3   # set a custom testing threshold
+        self._cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.4   # set a custom testing threshold
         self._cfg.MODEL.ROI_HEADS.NUM_CLASSES = 9
         self._predictor = DefaultPredictor(self._cfg)
         self._classes = ["bolt","box","connector2","connector3","fastener","holder_assembled","holder_empty","holder_full","top"]
@@ -101,6 +102,12 @@ class Detector(object):
             for name,center,mask in zip(names,centers,masks):
                 p = self.get_poi(name,center,mask)
                 array.poi_array.append(p)
+                if p.type.data == "holder" and p.state.data == "full":
+                    p2 = copy.deepcopy(p)
+                    p2.type = String("top")
+                    p2.state = String("")
+                    p2.pose.pose.position.z+=.005
+                    array.poi_array.append(p2)
                 #self.publish_point(centers[i],name+"_"+str(i))
             self._obj_publisher.publish(array)
 
