@@ -47,6 +47,7 @@ class Parser(object):
         self._moving = False
         self._zones = {}
         self._pause_autonomy = False
+        self._waiting_world_state = False
         self._conflict = None
 
         self._tfBuffer = tf2_ros.Buffer()
@@ -119,9 +120,9 @@ class Parser(object):
         
         if msg.data == "motion_finished":
             self._moving = False
-            if not self._pause_autonomy:
-                self._pause_autonomy = True
-                t = Timer(1.5, self.restart_autonomy) 
+            if not self._waiting_world_state:
+                self._waiting_world_state = True
+                t = Timer(1.5, self.ready_to_go) 
                 t.start()
         
         if msg.data == "pause_autonomy":
@@ -130,9 +131,9 @@ class Parser(object):
         if msg.data == "resume_autonomy":
             self._pause_autonomy = False
 
-    def restart_autonomy(self):
-        print("ready autonomy")
-        self._pause_autonomy = False
+    def ready_to_go(self):
+        print("ready to go")
+        self._waiting_world_state = False
 
     def on_poi(self, msg):
         self._pois = []
@@ -741,7 +742,7 @@ class Parser(object):
             self._command_pub.publish(cmd)
 
     def check_triggers(self):
-        if self._moving or self._pause_autonomy:
+        if self._moving or self._pause_autonomy or self._waiting_world_state:
             return
 
         #t = types.SimpleNamespace()
