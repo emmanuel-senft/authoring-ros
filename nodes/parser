@@ -112,6 +112,10 @@ class Parser(object):
         if event == "motion_finished" or event == "wait":
             self.publish_pois()
 
+        if event == "reset_triggers_zones":
+            self._triggers = {}
+            self._zones = {}
+
         #if event == "action_finished" and self._behavior_recording:
         #    self._actions_recorded.append(l[1])
         
