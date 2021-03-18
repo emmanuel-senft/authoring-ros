@@ -683,6 +683,7 @@ class Planner(object):
         if msg.type == msg.EXEC:
             self._sim = False
             self._event_pub.publish(String("start_exec"))
+            self._event_pub.publish("display_message;Robot is Moving")
             plan = []
             self._current_action_progress = []
             for sub_action in msg.core_action:

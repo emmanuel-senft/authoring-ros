@@ -111,6 +111,7 @@ class Parser(object):
 
         if event == "motion_finished" or event == "wait":
             self.publish_pois()
+            self._event_pub.publish("display_message;Robot is idle")
 
         if event == "reset_triggers_zones":
             self._triggers = {}
