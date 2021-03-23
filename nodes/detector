@@ -102,12 +102,12 @@ class Detector(object):
             for name,center,mask in zip(names,centers,masks):
                 p = self.get_poi(name,center,mask)
                 array.poi_array.append(p)
-                if p.type.data == "holder" and p.state.data == "full":
-                    p2 = copy.deepcopy(p)
-                    p2.type = String("top")
-                    p2.state = String("")
-                    p2.pose.pose.position.z+=.005
-                    array.poi_array.append(p2)
+                #if p.type.data == "holder" and p.state.data == "full":
+                #    p2 = copy.deepcopy(p)
+                #    p2.type = String("top")
+                #    p2.state = String("")
+                #    p2.pose.pose.position.z+=.005
+                #    array.poi_array.append(p2)
                 #self.publish_point(centers[i],name+"_"+str(i))
             self._obj_publisher.publish(array)
 
@@ -136,9 +136,9 @@ class Detector(object):
             pca.fit(X)
             theta = np.arctan2(pca.components_[0,0],pca.components_[0,1])+np.pi/2
             p.pose.position.z += .02
-            if theta < -np.pi/2:
-                theta+=np.pi
-            if theta > np.pi/2 and theta < 3*np.pi/2:
+            if theta < -np.pi/4:
+                theta += np.pi
+            if theta > 3*np.pi/4 and theta < 7*np.pi/4:
                 theta += np.pi
         else:
             theta = 0
