@@ -111,9 +111,10 @@ class Parser(object):
 
         if event == "motion_finished" or event == "wait":
             self.publish_pois()
-            self._event_pub.publish("display_message;Robot is idle")
+            #self._event_pub.publish("display_message;Robot is idle")
 
         if event == "reset_triggers_zones":
+            self._event_pub.publish("display_message;Resetting")
             self._triggers = {}
             self._zones = {}
 
@@ -124,20 +125,26 @@ class Parser(object):
             self._moving = True
         
         if msg.data == "motion_finished":
+            print("not moving")
             self._moving = False
             if not self._waiting_world_state:
+                self._event_pub.publish("display_message;Robot analyzing workspace")
                 self._waiting_world_state = True
                 t = Timer(1.5, self.ready_to_go) 
                 t.start()
         
         if msg.data == "pause_autonomy":
+            self._event_pub.publish("display_message;Rules Paused")
             self._pause_autonomy = True
         
         if msg.data == "resume_autonomy":
+            self._event_pub.publish("display_message;Rules Resumed")
             self._pause_autonomy = False
 
     def ready_to_go(self):
         print("ready to go")
+        if not self._moving:
+            self._event_pub.publish("display_message;Robot Idle")
         self._waiting_world_state = False
 
     def on_poi(self, msg):
@@ -351,6 +358,7 @@ class Parser(object):
             t.behavior = list_actions[2]
             t.priority = 0
             self._triggers[name] = t
+            self._event_pub.publish("display_message;Trigger Created")
             return
             
         if command_type.startswith("button_trigger"):
@@ -372,6 +380,7 @@ class Parser(object):
         if command_type == "delete_trigger":
             try:
                 self._triggers.pop(list_actions[1])
+                self._event_pub.publish("display_message;Trigger Deleted")
             except:
                 print("No trigger named "+list_actions[1])
             return
@@ -436,14 +445,17 @@ class Parser(object):
             print(self._zones)
             if command_type == "new_zone":
                 self._event_pub.publish("zone_created;"+name)
+                self._event_pub.publish("display_message;"+name.replace("_"," ")+" Updated")
             else:
                 self._event_pub.publish("zone_updated;"+name)
+                self._event_pub.publish("display_message;"+name.replace("_"," ")+" Updated")
             return
         
         if command_type == "delete_zone":
             try:
                 self._zones.pop(list_actions[1])
                 self._event_pub.publish("zone_deleted;"+list_actions[1])
+                self._event_pub.publish("display_message;"+list_actions[1].replace("_"," ")+" Deleted")
             except:
                 print("no zone named "+list_actions[1])
             return
