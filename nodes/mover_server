@@ -669,7 +669,7 @@ class AuthoringAction(object):
     def get_time_between_pose(self, start, end):
         linear,angular = self.get_diff_poses(start,end)
         max_v_lin = 20. if self._virtual else .5
-        max_v_ang = 40. if self._virtual else 2
+        max_v_ang = 40. if self._virtual else np.pi
         t_lin = np.sqrt(np.sum(linear**2)) / max_v_lin
         t_ang = max(np.fabs(angular))/max_v_ang
         return max(t_lin,t_ang)

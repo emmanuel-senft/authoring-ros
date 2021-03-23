@@ -282,7 +282,7 @@ class Planner(object):
             move_close = copy.deepcopy(move_above)
             move_to.type = move_to.MOVE_FORCE
             move_above.pose.pose.position.z+=.08
-            move_close.pose.pose.position.z+=.02
+            move_close.pose.pose.position.z+=.025
             move_to.pose.pose.position.z -= .01
             grasp = Action(sim=Bool(sim))
             grasp.finished.data = False
@@ -313,7 +313,7 @@ class Planner(object):
             move_above.type = move_above.MOVE
             move_above.pose = action.poses.poses[0]
             move_to = copy.deepcopy(move_above)
-            move_above.pose.pose.position.z+=.06
+            move_above.pose.pose.position.z+=.08
             if action.type == action.PLACE:
                 move_to.type = move_to.MOVE_FORCE
             else:
@@ -724,6 +724,8 @@ class Planner(object):
         result = False
 
         for action in self._plan[starting:]:
+            if(self.get_type(action) == ""):
+                print("unknown action" + str(action))
             print("At action "+self.get_type(action))
             if action.finished.data:
                 event = "action_finished;"+self.get_type(action)
