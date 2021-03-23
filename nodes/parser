@@ -156,9 +156,10 @@ class Parser(object):
         self.publish_pois()
 
     def publish_pois(self):
-        self._poi_gui="poi;"
+        
         done = False
         while not done:
+            self._poi_gui="poi;"
             try:
                 for p in self._pois:
                     #Inform interface of poi
