@@ -25,6 +25,8 @@ import tf2_geometry_msgs
 import PyKDL
 import types
 from scipy.spatial import ConvexHull
+from functools import cmp_to_key
+
 
 
 REFERENCE_FRAME='panda_link0'
@@ -850,11 +852,28 @@ class Parser(object):
                         print(target)
                         return behavior.replace(item,target)
         return None 
+
+    def comp_conditions(self, a, b):
+        if "HasState" in a:
+            return -1
+        if "HasState" in b:
+            return 1
+        if "IsNotIn" in a:
+            return -1
+        if "IsNotIn" in b:
+            return 1
+        return 0
+
     def parse_conditions(self, list_conditions):
         #screwM5-IsNotIn-200_400_500_500
         if list_conditions[0].startswith("button"):
             return list_conditions[0]
         to_return = []
+
+        cmp = cmp_to_key(self.comp_conditions)
+
+        list_conditions.sort(key=cmp)
+
         for condition in list_conditions:
             c = types.SimpleNamespace()
             args = condition.split("-")
