@@ -104,7 +104,7 @@ class Tracker(object):
         return poi
 
     def update_poi(self, p1, p2):
-        k1 = 4
+        k1 = 1
         k2 = 1
         p1.position.x=(k1*p1.position.x+k2*p2.position.x)/(k1+k2)
         p1.position.y=(k1*p1.position.y+k2*p2.position.y)/(k1+k2)
