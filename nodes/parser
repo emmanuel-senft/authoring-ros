@@ -373,7 +373,7 @@ class Parser(object):
                 print(button_name)
                 if t.conditions == button_name:
                     t.name = name
-                    actions = self.parse_actions(t.behavior.split(",")) 
+                    actions = self.parse_actions(t.behavior.split(","),t.candidates) 
                     if actions is None:
                         continue    
                     self.run_trigger(t)
@@ -949,13 +949,12 @@ class Parser(object):
                         return None
                     
                     action.item = String(item_name+"-"+self.get_poi_name(dest))
-                    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_name, rospy.Time(0)) 
-                    pose = self.get_pose_from_trans(t)
+                    #t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_name, rospy.Time(0)) 
+                    pose = self.get_hybrid_pose(item.pose) #self.get_pose_from_trans(t)
                     action.pose = pose
                     action.poses.poses.append(pose)
-                    t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, self.get_poi_name(dest), rospy.Time(0)) 
-                    pose = self.get_pose_from_trans(t)
-                    action.poses.poses.append(pose)
+                    pose2 = self.get_hybrid_pose(dest.pose)#self.get_pose_from_trans(t)
+                    action.poses.poses.append(pose2)
                     action.type = action.MOVE_OBJECT
                     moved[item_name]=action.poses.poses[-1]
                     actions.append(action)
@@ -969,8 +968,7 @@ class Parser(object):
                         return None
                 
                 item_str = self.get_poi_name(item)
-                t = self._tfBuffer.lookup_transform(REFERENCE_FRAME, item_str, rospy.Time(0)) 
-                start = self.get_pose_from_trans(t)
+                start = self.get_hybrid_pose(item.pose)#self.get_pose_from_trans(t)
 
                 goal = self.get_hybrid_pose(PoseStamped())
                 goal.pose.orientation.w = 1
@@ -1094,7 +1092,9 @@ class Parser(object):
 
             if type(zone) == ConvexHull:
                 if self.point_in_hull((position.x,position.y),zone):
-                    return p
+                    toreturn = copy.deepcopy(p)
+                    toreturn.pose.pose.position = position
+                    return toreturn
         return None
     
     def find_free_space_in_zone(self,item_type,zone, pattern, moved = {}):
