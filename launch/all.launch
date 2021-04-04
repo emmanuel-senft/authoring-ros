@@ -5,8 +5,17 @@
     <arg name="use_static_cloud" default="false"/>
     <arg name="local_kinect" default="false"/>
     <arg name="only_virtual" default="false"/>
-    <arg name="with_rviz" default="false"/>
+    <arg name="with_rviz" default="$(arg only_virtual)"/>
     <arg name="use_fake_kinect" default="$(arg only_virtual)"/>
+    <arg name="record" default="false"/>
+    <arg name="bridge" default="false"/>
+
+
+    <group if="$(arg record)">
+        <node pkg="rosbag" type="record" name="rosbag_record_event"
+       args="record -o /home/senft/Documents/tap\ study/bags /event /gui/command /parser/gui_info"
+       />
+    </group>
 
     <group if="$(arg use_static_cloud)">
         <node pkg="authoring" type="static_publisher" name="camera_static_publisher">
