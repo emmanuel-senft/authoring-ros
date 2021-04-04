@@ -1204,7 +1204,11 @@ class Parser(object):
         r = rospy.Rate(self._freq)
         while not rospy.is_shutdown():
             self.publish_pois()
-            self.check_triggers()
+            try:
+                self.check_triggers()
+            except Exception as e:
+                print(e)
+                
             r.sleep()
 
     def signal_handler(self, signal, frame):
