@@ -38,7 +38,7 @@ class Parser(object):
         self._joints = None
         self._camera_t = None
         self._freq = 1
-        self._saved_view = []
+        self._saved_view = {}
         self._depth = None
         self._numpy_depth = None
         self._new_depth = True
@@ -342,11 +342,8 @@ class Parser(object):
         if command_type == 'init_gui' or command_type == "lock":
             self.publish_pois()
         if command_type == 'save_view' and self._joints is not None:
-            n = int(list_actions[1])
-            if n > len(self._saved_view) - 1:
-                self._saved_view.append(self._joints)
-            else:
-                self._saved_view[n] = self._joints
+            
+            self._saved_view[list_actions[1]] = self._joints
             return
 
         if command_type.startswith("trigger"):
@@ -409,20 +406,23 @@ class Parser(object):
             return
 
         if command_type == 'load_view':
-            n = int(list_actions[1])
-            if n < len(self._saved_view):
-                action = Action()
-                action.poses.header.frame_id = REFERENCE_FRAME
-                action.type = action.MOVE_ANGLE
-                action.joint_pose = self._saved_view[n]
-                pose = HybridPose()
-                pose.constraint_frame.w = 1
-                action.poses.poses.append(pose)
-                cmd = Command()
-                cmd.type = cmd.EXEC
-                cmd.core_action.append(action)
-                self._command_pub.publish(cmd)
+            try:
+                angles = self._saved_view[list_actions[1]]
+            except:
+                print("no such view")
                 return
+            action = Action()
+            action.poses.header.frame_id = REFERENCE_FRAME
+            action.type = action.MOVE_ANGLE
+            action.joint_pose = angles
+            pose = HybridPose()
+            pose.constraint_frame.w = 1
+            action.poses.poses.append(pose)
+            cmd = Command()
+            cmd.type = cmd.EXEC
+            cmd.core_action.append(action)
+            self._command_pub.publish(cmd)
+            return
 
         #if command_type == 'play':
         #    n = int(list_actions[1])
