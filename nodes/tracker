@@ -48,8 +48,8 @@ class Tracker(object):
         self._init_sim = None
         self._world_type = None
         if self._virtual:
-            self._world_type = "screws"
-            self._simulated_objects_sub = rospy.Subscriber("/simulated_objects", POIArray, self.on_simulated_objects)
+            #self.create_sort()
+            self.create_multi()
 
         self._poi_sub = rospy.Subscriber("pois", POIArray, self.on_pois, queue_size = 1)
         self._gui_sub = rospy.Subscriber("parser/command", Command, self.on_command, queue_size = 1)
@@ -200,98 +200,16 @@ class Tracker(object):
                 self._objects.append(copy.deepcopy(poi))
                 
         if event[0] == "reset_world_sort":
-            self._world_type = "sort"
-            print("resetting to sort")
-            self._objects = []
-
-            poi_init = POI()
-            poi_init.pose.pose.position.x=.4
-            poi_init.pose.pose.position.y=0
-            poi_init.pose.pose.position.z=.08
-            poi_init.pose.pose.orientation.w=1
-            poi_init.pose.header.frame_id = REFERENCE_FRAME
-            poi_init.age = self._age_threshold
-            poi_init.id = -1
-            for t in ["bolt","connector2","connector3","fastener"]:
-                poi_init.type = String(t)
-                for i in range(4):
-                    r = .15
-                    dx = r
-                    dy = r
-                    while(dx**2+dy**2>r**2):
-                        dx = (random.random()-.5)*r
-                        dy = (random.random()-.5)*r
-                    p = copy.deepcopy(poi_init)
-                    p.pose.pose.position.x+=dx
-                    p.pose.pose.position.y+=dy
-                    p.id = i
-                    self._objects.append(p)
-            
-            poi_init.type = String("box")
-            poi_init.pose.pose.position.x +=.35
-            poi_init.pose.pose.position.y =-.15
-            for i in range(4):
-                p = copy.deepcopy(poi_init)
-                p.pose.pose.position.y+=i*.1
-                p.id = i
-                self._objects.append(p)
-                    
-
-            
-
+            self.create_sort()
+                             
         if event[0] == "reset_world_kit":
-            self._world_type = "kit"
-            print("resetting to kit")
-            self._objects = []
-            for num,t in enumerate(["bolt","connector2","connector3","fastener"]):
-                poi_init = POI()
-                poi_init.pose.pose.position.x=.3
-                poi_init.pose.pose.position.y=0+(num-3)*.1
-                poi_init.pose.pose.position.z=.08
-                poi_init.pose.pose.orientation.w=1
-                poi_init.pose.header.frame_id = REFERENCE_FRAME
-                poi_init.type = String(t)
-                poi_init.age = self._age_threshold
-                poi_init.id = -1
-                for i in range(5):
-                    p = copy.deepcopy(poi_init)
-                    p.pose.pose.position.x+=i*.01
-                    p.id = i
-                    self._objects.append(p)
+            self.create_kit()
 
         if event[0] == "reset_world_assembly":
-            self._world_type = "assembly"
-            print("resetting to assembly")
-            self._objects = []
-            for num,t in enumerate(["holder","top"]):
-                poi_init = POI()
-                poi_init.pose.pose.position.x=.3
-                poi_init.pose.pose.position.y=0+(num-3)*.1
-                poi_init.pose.pose.position.z=.08
-                poi_init.pose.pose.orientation.w=1
-                poi_init.pose.header.frame_id = REFERENCE_FRAME
-                poi_init.type = String(t)
-                poi_init.age = self._age_threshold
-                if t == "holder":
-                    poi_init.state = String("empty")
-                poi_init.id = -1
-                for i in range(5):
-                    p = copy.deepcopy(poi_init)
-                    p.pose.pose.position.x+=i*.01
-                    p.id = i
-                    self._objects.append(p)
-            poi_init.type = String("holder")
-            poi_init.state = String("full")
-            poi_init.pose.pose.position.x = .5
-            p = copy.deepcopy(poi_init)
-            p.id = 6
-            p.pose.pose.position.y = -.1
-            self._objects.append(p)
-            p = copy.deepcopy(poi_init)
-            p.id = 7
-            p.pose.pose.position.y = .1
-            p.state = String("assembled")
-            self._objects.append(p)
+            self.create_assembly()
+
+        if event[0] == "reset_world_multi":
+            self.create_multi()
             
         if event[0] == "grasped":
             self._grasped_object = event[1]
@@ -344,6 +262,158 @@ class Tracker(object):
                     item2.state.data = "full"
                     self._objects = [x for x in self._objects if self.get_name(x) != self.get_name(item1)]
 
+    def create_sort(self):
+        self._world_type = "sort"
+        print("resetting to sort")
+        self._objects = []
+
+        poi_init = POI()
+        poi_init.pose.pose.position.x=.35
+        poi_init.pose.pose.position.y=0
+        poi_init.pose.pose.position.z=.08
+        poi_init.pose.pose.orientation.w=1
+        poi_init.pose.header.frame_id = REFERENCE_FRAME
+        poi_init.age = self._age_threshold
+        poi_init.id = -1
+        for t in ["bolt","connector3","fastener"]:
+            poi_init.type = String(t)
+            for i in range(3):
+                dx = (random.random()-.5)*.1
+                dy = (random.random()-.5)*.5
+                p = copy.deepcopy(poi_init)
+                p.pose.pose.position.x+=dx
+                p.pose.pose.position.y+=dy
+                p.id = i
+                self._objects.append(p)
+        
+        poi_init.type = String("box")
+        poi_init.pose.pose.position.x =.65
+        for i in range(3):
+            p = copy.deepcopy(poi_init)
+            p.pose.pose.position.y=.25 - i*.25
+            p.id = i
+            self._objects.append(p)
+
+    def create_kit(self):
+        self._world_type = "kit"
+        print("resetting to kit")
+        self._objects = []
+        poi_init = POI()
+        poi_init.pose.pose.position.x=.35
+        poi_init.pose.pose.position.y=0
+        poi_init.pose.pose.position.z=.08
+        poi_init.pose.pose.orientation.w=1
+        poi_init.pose.header.frame_id = REFERENCE_FRAME
+        poi_init.age = self._age_threshold
+        poi_init.id = -1
+        
+        #Bolts
+        poi_init.type = String("bolt")
+
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.y=.3
+        p.id = 0
+        self._objects.append(p)
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.y=.25
+        p.id = 1
+        self._objects.append(p)
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.y=.25
+        p.pose.pose.position.x=.4
+        p.id = 2
+        self._objects.append(p)
+
+        #Bolts
+        poi_init.type = String("connector3")
+
+        for i in range(2):
+            for j in range(3):
+                p = copy.deepcopy(poi_init)
+                p.pose.pose.position.x=.35+.05*i
+                p.pose.pose.position.y=-.1+j*.1
+                p.id = 3*i+j
+                self._objects.append(p)
+    
+
+        #fasterners
+        poi_init.type = String("fastener")
+
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.y=-.3
+        p.id = 0
+        self._objects.append(p)
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.y=-.25
+        p.id = 1
+        self._objects.append(p)
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.y=-.25
+        p.pose.pose.position.x=.4
+        p.id = 2
+        self._objects.append(p)
+
+    def create_assembly(self):
+        self._world_type = "assembly"
+        print("resetting to assembly")
+        self._objects = []
+
+        poi_init = POI()
+        poi_init.pose.pose.position.x=.375
+        poi_init.pose.pose.position.y=0
+        poi_init.pose.pose.position.z=.08
+        poi_init.pose.pose.orientation.w=1
+        poi_init.pose.header.frame_id = REFERENCE_FRAME
+        poi_init.age = self._age_threshold
+
+        #holders
+        poi_init.type = String("top")
+        for i in range(3):
+            p = copy.deepcopy(poi_init)
+            p.pose.pose.position.y-=.04+i*.06
+            p.id = i
+            self._objects.append(p)
+
+        #holders
+        poi_init.type = String("holder")
+        poi_init.state = String("empty")
+        for i in range(3):
+            p = copy.deepcopy(poi_init)
+            p.pose.pose.position.y+=.04+i*.06
+            p.id = i
+            self._objects.append(p)
+
+    def create_multi(self):
+        self._world_type = "multi"
+        print("resetting to multi")
+        self._objects = []
+
+        poi_init = POI()
+        poi_init.pose.pose.position.x=.0
+        poi_init.pose.pose.position.y=0
+        poi_init.pose.pose.position.z=.08
+        poi_init.pose.pose.orientation.w=1
+        poi_init.pose.header.frame_id = REFERENCE_FRAME
+        poi_init.age = self._age_threshold
+
+        #holders
+        poi_init.type = String("top")
+        for i in range(3):
+            p = copy.deepcopy(poi_init)
+            p.pose.pose.position.y-=.4+i*.06
+            p.id = i
+            self._objects.append(p)
+
+        #holders
+        poi_init.type = String("holder")
+        poi_init.state = String("empty")
+        for i in range(3):
+            p = copy.deepcopy(poi_init)
+            p.pose.pose.position.y+=.4+i*.06
+            p.id = i
+            self._objects.append(p)
+
+
     def get_object_from_string(self, name):
         return next((x for x in self._objects if self.get_name(x) == name), None)
 
@@ -384,6 +454,10 @@ class Tracker(object):
     def publish_pois(self):
         if self._virtual and self._init_pois is None:
             return
+        if self._virtual:
+            for o in self._objects:
+                if o.type.data == "holder" and o.state.data == "full" and o.pose.pose.position.x > .5:
+                    o.state.data = "assembled"
         self._tf_array = []
         msg = POIArray()
         if self._world_type == "screws":
