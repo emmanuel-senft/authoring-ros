@@ -208,17 +208,17 @@ class AuthoringAction(object):
             self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "panda_gripper", rospy.Time(0)))
             self.get_pose_rot(self._starting_pose.pose,goal.goal.pose.constraint_frame)
         else:
+            t = rospy.Time.now()
             goal.goal.pose.header.frame_id = REFERENCE_FRAME
             cam_goal = self.get_trans_from_pose(goal.goal.pose,"cam_goal")
-            cam_goal.header.stamp = rospy.Time.now()
+            cam_goal.header.stamp = t
             self._tfBuffer.set_transform(cam_goal,"mover_server")
-            cam_2_ee = self._tfBuffer.lookup_transform(CAMERA_FRAME, 'sim_panda_gripper', rospy.Time(0))
+            cam_2_ee = self._tfBuffer.lookup_transform(CAMERA_FRAME, 'sim_panda_gripper', t)
             cam_2_ee.header.frame_id = "cam_goal"
             cam_2_ee.child_frame_id = "cam_ee_goal"
-            cam_2_ee.header.stamp = rospy.Time.now()
+            cam_2_ee.header.stamp = t
             self._tfBuffer.set_transform(cam_2_ee,"mover")
-            rospy.sleep(.01)
-            cam_ee_goal = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "cam_ee_goal", rospy.Time(0))
+            cam_ee_goal = self._tfBuffer.lookup_transform(REFERENCE_FRAME, "cam_ee_goal", t)
             p = self.get_pose_from_trans(cam_ee_goal)
             goal.goal.pose.pose = p.pose 
             self._starting_pose = self.get_pose_from_trans(self._tfBuffer.lookup_transform("panda_link0", "sim_panda_gripper", rospy.Time(0)))
