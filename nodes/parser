@@ -1116,10 +1116,12 @@ class Parser(object):
         
     def get_hull_from_pixel(self, coord):
         [x,y,w,h] = [int(c) for c in coord.split("_")]
-        p1 = self.get_table_intersection(.985*x,y+22)
-        p2 = self.get_table_intersection(.985*x+w,y+22)
-        p3 = self.get_table_intersection(.985*x+w,y+h+22)
-        p4 = self.get_table_intersection(.985*x,y+h+22)
+        k = 1 #.985
+        off = 0 #22
+        p1 = self.get_table_intersection(k*x,y+off)
+        p2 = self.get_table_intersection(k*x+w,y+off)
+        p3 = self.get_table_intersection(k*x+w,y+h+off)
+        p4 = self.get_table_intersection(k*x,y+h+off)
         
         points = np.array([p1,p2,p3,p4])
         return ConvexHull(points)
