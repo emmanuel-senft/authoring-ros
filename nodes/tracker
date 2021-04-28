@@ -391,27 +391,48 @@ class Tracker(object):
         poi_init = POI()
         poi_init.pose.pose.position.x=.0
         poi_init.pose.pose.position.y=0
-        poi_init.pose.pose.position.z=.08
+        poi_init.pose.pose.position.z=.008
         poi_init.pose.pose.orientation.w=1
         poi_init.pose.header.frame_id = REFERENCE_FRAME
         poi_init.age = self._age_threshold
 
         #holders
         poi_init.type = String("top")
-        for i in range(3):
-            p = copy.deepcopy(poi_init)
-            p.pose.pose.position.y-=.4+i*.06
-            p.id = i
-            self._objects.append(p)
+        #for i in range(3):
+        #    p = copy.deepcopy(poi_init)
+        #    p.pose.pose.position.y-=.4+i*.06
+        #    p.id = i
+        #    self._objects.append(p)
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.x=.5
+        p.pose.pose.position.y=.1
+        p.id = 4
+        self._objects.append(p)
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.x=.5
+        p.pose.pose.position.y=-.1
+        p.id = 5
+        self._objects.append(p)
 
         #holders
         poi_init.type = String("holder")
         poi_init.state = String("empty")
-        for i in range(3):
-            p = copy.deepcopy(poi_init)
-            p.pose.pose.position.y+=.4+i*.06
-            p.id = i
-            self._objects.append(p)
+        #for i in range(3):
+        #    p = copy.deepcopy(poi_init)
+        #    p.pose.pose.position.y+=.4+i*.06
+        #    p.id = i
+        #    self._objects.append(p)
+
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.x=.3
+        p.pose.pose.position.y=.1
+        p.id = 4
+        self._objects.append(p)
+        p = copy.deepcopy(poi_init)
+        p.pose.pose.position.x=.3
+        p.pose.pose.position.y=-.1
+        p.id = 5
+        self._objects.append(p)
 
 
     def get_object_from_string(self, name):
