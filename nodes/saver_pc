@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+import rospy
+from sensor_msgs.msg import PointCloud2, Image
+import json
+import sys
+from cv_bridge import CvBridge, CvBridgeError
+import cv2
+import rospkg
+
+bridge = CvBridge()
+
+def callback(msg):
+    print("Received an image!")
+    try:
+        # Convert your ROS Image message to OpenCV2
+        cv2_img = bridge.imgmsg_to_cv2(msg, "bgr8")
+    except CvBridgeError as e:
+        print(e)
+    else:
+        # Save your OpenCV2 image as a jpeg 
+        time = msg.header.stamp
+        cv2.imwrite('/home/senft/Pictures/saved for recognition/image_test'+str(time)+'.jpeg', cv2_img)
+        rospy.sleep(1)
+
+def callback_cloud(msg):
+    print("Received a cloud!")
+    rospack = rospkg.RosPack()
+    path = rospack.get_path('authoring')+'/saved_msgs/pc3.txt'
+    
+    with open(path, 'w') as outfile:
+        msg.serialize(outfile.buffer)
+        
+    print("done")
+
+def callback_depth(msg):
+    print("Received a depth image!")
+    try:
+        # Convert your ROS Image message to OpenCV2
+        cv2_img = bridge.imgmsg_to_cv2(msg, "32FC1")
+    except CvBridgeError as e:
+        print(e)
+    else:
+        # Save your OpenCV2 image as a jpeg 
+        time = msg.header.stamp
+        cv2.imwrite('/home/senft/Pictures/saved for recognition/depth_test'+str(time)+'.jpeg', cv2_img)
+        rospy.sleep(1)
+
+def listener():
+    rospy.init_node('image_saver')
+#    rospy.Subscriber("/points2",PointCloud2,callback)
+#    rospy.spin()
+    callback_cloud(rospy.wait_for_message("/points2",PointCloud2))
+    #callback(rospy.wait_for_message("/rgb/image_raw",Image))
+    #callback_depth(rospy.wait_for_message("/depth/image_raw",Image))
+
+if __name__ == '__main__':
+    listener()
+
+
